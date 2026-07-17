@@ -1,0 +1,774 @@
+openapi: 3.0.3
+servers:
+  - url: "https://api.granve.com"
+    description: Production
+  - url: "https://sandbox-api.granve.com"
+    description: Sandbox
+info:
+  title: Granve API
+  version: "1.0.0"
+  contact:
+    email: contacto@granve.com
+  description: |
+    ## Introduction
+
+    Welcome to the Granve API. It lets you create payment orders, redirect your customer to a
+    hosted payment page, and query the state of every transaction of your account.
+
+    The API is designed around REST principles: predictable URLs, JSON request and response
+    bodies, and standard HTTP status codes. All responses are JSON, including errors.
+
+    ## Endpoint
+
+    | Environment  | Base URL                          |
+    |--------------|-----------------------------------|
+    | Production   | https://api.granve.com            |
+    | Sandbox      | https://sandbox-api.granve.com    |
+
+    ## Authentication
+
+    Every request must include three headers:
+
+    - `Authorization`: `Bearer your_public_token`
+    - `X-Date`: current UTC timestamp, ISO-8601 with explicit `Z` suffix
+      (`YYYY-MM-DDTHH:MM:SSZ`), within ±5 minutes of server time.
+    - `X-Sign`: hex HMAC-SHA256 of the `X-Date` value, keyed with your private token.
+
+    Example (PHP):
+
+    ```php
+    $date = gmdate("Y-m-d\TH:i:s\Z");
+    $sign = hash_hmac('sha256', $date, $your_private_token);
+    ```
+
+    An invalid or expired `X-Date` returns `401` with `error.code = "DATE_INVALID"`.
+
+    ## Errors
+
+    Every error body follows the same envelope:
+    `{"status": "failed", "error": {"type": "...", "message": {"field": "reason"}}}`.
+    `error.type` is `invalid_request_error` (fix the request, do not retry as-is) or
+    `api_error` (server-side, safe to retry with backoff). Not-found lookups return
+    `404` with `{"status": "failed", "error": {"message": "not found"}}`.
+
+    ## Webhooks & return URL
+
+    Webhook and return URLs are **registered per account** (not per request).
+    When a payment order reaches a terminal state (`completed`, `attempts_exhausted`,
+    `expired`, `canceled_user`) Granve sends **one** `POST` to your webhook URL with
+    `token`, `status` and `order` both as query string and as JSON body. Acknowledge
+    with any `2xx`; failed deliveries are retried up to 3 times. The webhook is not
+    signed — always confirm via `GET /v1.0/payment/{token}` before delivering goods.
+    The payer's browser is redirected to your return URL with the same parameters.
+    For payouts, an optional per-request `urlnotify` receives `{"token": "<payout id>"}`
+    when the payout is processed.
+
+    ## Testing
+
+    Use your sandbox keys against `https://sandbox-api.granve.com` — same contract,
+    simulated bank confirmations, no real money.
+
+tags:
+  - name: Payment (PayIn)
+    description: Create payment orders and query their state.
+  - name: Payment (PayOut)
+    description: Send money from your wallet to a beneficiary (Pago Móvil or transfer).
+  - name: Wallet
+    description: Balance and ledger movements of your Granve wallet.
+
+paths:
+  /v1.0/payment:
+    post:
+      tags: [Payment (PayIn)]
+      summary: Create
+      description: |
+        Creates a payment order and returns the payment order object, including the
+        `redirect_url` where the customer must be sent to pay. Store the returned `token`:
+        it identifies the order in every later query.
+
+        When the order reaches a terminal state, the result is delivered once to the webhook
+        URL registered for your account, and the payer is redirected to your registered
+        return URL with `?token=…&status=…&order=…` appended.
+      parameters:
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payment, amount, email, order, subject]
+              properties:
+                payment:
+                  type: string
+                  description: "Token of the payment method to charge with, from the methods enabled for your account (provided during onboarding)."
+                amount:
+                  type: string
+                  pattern: '^[0-9]+(\.[0-9]{1,2})?$'
+                  description: "Amount to charge. Decimal with up to 2 places; minimum 5 VES."
+                email:
+                  type: string
+                  format: email
+                  description: "Payer's email."
+                order:
+                  type: string
+                  pattern: '^[a-zA-Z0-9]+$'
+                  description: "Your unique order identifier, alphanumeric. Reusing an existing value returns 409."
+                subject:
+                  type: string
+                  description: "Description of the product or service."
+                document:
+                  type: string
+                  pattern: '^[VEJ][0-9]{7,10}$'
+                  description: "Payer's identity document: type letter + digits (e.g. V00000000). Allowed types: V, E, J."
+                phone:
+                  type: string
+                  pattern: '^(0412|0414|0416|0422|0424|0426)[0-9]{7}$'
+                  description: "Payer's phone (e.g. 04120000000)."
+                additional_parameters:
+                  type: object
+                  additionalProperties: true
+                  description: "Free key/value object echoed back inside commerce.additional_parameters in every response."
+                payer:
+                  type: object
+                  description: "Optional prefill for background bank verification (phone, document, reference, bank, date)."
+            example:
+              payment: "YOURMETHODTOKEN"
+              amount: "100.00"
+              email: "user@example.com"
+              order: "ORDER0001"
+              subject: "Lorem ipsum dolor sit"
+              document: "V00000000"
+              phone: "04120000000"
+      responses:
+        "200":
+          description: Payment order created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentOrder"
+              examples:
+                default:
+                  $ref: "#/components/examples/PaymentOrderExample"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "409":
+          description: The `order` identifier already exists for your account.
+          content:
+            application/json:
+              example:
+                status: failed
+                error:
+                  type: invalid_request_error
+                  message:
+                    order: "already exists"
+        "500":
+          description: Internal server error.
+
+    get:
+      tags: [Payment (PayIn)]
+      summary: List
+      description: |
+        Returns the payment orders of your account as an array of payment order objects,
+        newest first.
+
+        For large volumes use keyset pagination: read the `X-Next-Cursor` response header
+        and pass it back as `after_id` to fetch the next page.
+      parameters:
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+        - name: start_date
+          in: query
+          description: "Filter start (YYYY-MM-DD). Must not be in the future."
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          description: "Filter end (YYYY-MM-DD). Must not be in the future. The range may span at most 92 days."
+          schema: { type: string, format: date }
+        - name: per_page
+          in: query
+          description: "Records per page: 10–5000. Default 5000."
+          schema: { type: integer, minimum: 10, maximum: 5000 }
+        - name: page
+          in: query
+          description: "Classic page number (offset pagination)."
+          schema: { type: integer, minimum: 1 }
+        - name: after_id
+          in: query
+          description: "Keyset cursor: return records older than this id. Use the X-Next-Cursor header from the previous page."
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Array of payment order objects.
+          headers:
+            X-Next-Cursor:
+              description: "Cursor for the next page — pass it as after_id."
+              schema: { type: string }
+            X-Total:
+              description: "Total records for the filter (sent on the first page)."
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaymentOrder"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "500":
+          description: Internal server error.
+
+  /v1.0/payment/{token}:
+    get:
+      tags: [Payment (PayIn)]
+      summary: Get
+      description: Retrieves one payment order using the `token` returned by Create.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: "The payment order token."
+          schema: { type: string }
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      responses:
+        "200":
+          description: The payment order object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentOrder"
+              examples:
+                default:
+                  $ref: "#/components/examples/PaymentOrderExample"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          description: Internal server error.
+
+  /v1.0/payment/order/{order}:
+    get:
+      tags: [Payment (PayIn)]
+      summary: Get by order
+      description: Retrieves one payment order using your own `order` identifier instead of the Granve token.
+      parameters:
+        - name: order
+          in: path
+          required: true
+          description: "Your order identifier (the one you sent on Create)."
+          schema: { type: string }
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      responses:
+        "200":
+          description: The payment order object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentOrder"
+              examples:
+                default:
+                  $ref: "#/components/examples/PaymentOrderExample"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          description: Internal server error.
+
+  /v1.0/payout:
+    post:
+      tags: [Payment (PayOut)]
+      summary: Create
+      description: |
+        Creates a payout to a beneficiary and debits your wallet (amount + fee).
+
+        The destination is defined by `bank.num`: an 11-digit mobile number selects
+        Pago Móvil (`bank.code` required), a 20-digit account number selects bank
+        transfer (`bank.type` required; the bank is taken from the account's first
+        4 digits).
+      parameters:
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, phone, order, subject, amount, bank]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  maxLength: 100
+                phone:
+                  type: string
+                  pattern: '^(0412|0414|0416|0422|0424|0426)[0-9]{7}$'
+                  description: "11 digits; prefixes 0412, 0414, 0416, 0422, 0424, 0426."
+                order:
+                  type: string
+                  pattern: '^[a-zA-Z0-9-]{1,99}$'
+                  description: "Your unique payout identifier. Reusing a value returns 409."
+                subject:
+                  type: string
+                  minLength: 5
+                  maxLength: 200
+                amount:
+                  type: integer
+                  minimum: 1
+                  description: "Amount in VES, whole numbers only (no decimals)."
+                bank:
+                  type: object
+                  required: [name, document, num]
+                  properties:
+                    name: { type: string, minLength: 3, maxLength: 50 }
+                    document:
+                      type: string
+                      pattern: '^[VEJ][0-9]{7,10}$'
+                      description: "Type letter (V, E, J) + 7–10 digits (e.g. V00000000)."
+                    num:
+                      type: string
+                      pattern: '^((0412|0414|0416|0422|0424|0426)[0-9]{7}|[0-9]{20})$'
+                      description: "11-digit mobile (Pago Móvil) or 20-digit account (transfer)."
+                    code:
+                      type: string
+                      description: "Bank code — required for Pago Móvil. One of the codes 0102–0191."
+                    type:
+                      type: string
+                      enum: [A, C]
+                      description: "Account type — required for transfers: A (savings) or C (checking)."
+                urlnotify:
+                  type: string
+                  format: uri
+                  maxLength: 255
+                additional_parameters:
+                  type: object
+                  additionalProperties: true
+            example:
+              email: "user@example.com"
+              phone: "04120000000"
+              order: "PO-0001"
+              subject: "Lorem ipsum payout"
+              amount: 100
+              bank:
+                name: "Lorem Ipsum"
+                document: "V00000000"
+                num: "04120000000"
+                code: "0102"
+              urlnotify: "https://example.com/notify"
+      responses:
+        "200":
+          description: Payout created (`status = register`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payout"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "409":
+          description: The `order` identifier already exists for your account.
+        "500":
+          description: Internal server error.
+
+    get:
+      tags: [Payment (PayOut)]
+      summary: List
+      description: |
+        Returns the payouts of your account, newest first. **Without dates the range
+        defaults to today only** (404 if there were no payouts today). Keyset
+        pagination via `after_id` + `X-Next-Cursor`, like PayIn List.
+      parameters:
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+        - name: start_date
+          in: query
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          description: "Range limited to 92 days."
+          schema: { type: string, format: date }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 10, maximum: 5000 }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: after_id
+          in: query
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Array of payout objects.
+          headers:
+            X-Next-Cursor:
+              schema: { type: string }
+            X-Total:
+              description: "First page only."
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Payout"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1.0/payout/{id}:
+    get:
+      tags: [Payment (PayOut)]
+      summary: Get
+      description: Retrieves one payout by the `id` returned on Create. Lookups cover the last 180 days.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      responses:
+        "200":
+          description: The payout object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payout"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1.0/payout/order/{order}:
+    get:
+      tags: [Payment (PayOut)]
+      summary: Get by order
+      description: Retrieves the most recent payout matching your own `order` identifier (last 180 days).
+      parameters:
+        - name: order
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      responses:
+        "200":
+          description: The payout object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payout"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1.0/wallet/balance:
+    get:
+      tags: [Wallet]
+      summary: Balance
+      description: Returns your current wallet balance (VES).
+      parameters:
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      responses:
+        "200":
+          description: Current balance.
+          content:
+            application/json:
+              example:
+                balance: 900.00
+                currency: "VES"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "404":
+          description: No wallet provisioned for the account.
+
+  /v1.0/wallet:
+    get:
+      tags: [Wallet]
+      summary: List
+      description: |
+        Returns the wallet movements of your account. **Without dates the range
+        defaults to today only.**
+      parameters:
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+        - name: start_date
+          in: query
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          schema: { type: string, format: date }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 10, maximum: 5000 }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: order
+          in: query
+          description: "Sort by movement id: ASC or DESC (default)."
+          schema: { type: string, enum: [ASC, DESC] }
+      responses:
+        "200":
+          description: Array of movement objects.
+          headers:
+            X-Page:
+              schema: { type: integer }
+            X-Per-Page:
+              schema: { type: integer }
+            X-Total:
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WalletMovement"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1.0/wallet/{id}:
+    get:
+      tags: [Wallet]
+      summary: Get
+      description: Retrieves one wallet movement by its `id`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      responses:
+        "200":
+          description: The movement object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletMovement"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  parameters:
+    HeaderAuthorization:
+      name: Authorization
+      in: header
+      required: true
+      description: "Bearer + your public token."
+      schema: { type: string }
+    HeaderDate:
+      name: X-Date
+      in: header
+      required: true
+      description: "UTC timestamp, ISO-8601 with Z (YYYY-MM-DDTHH:MM:SSZ), ±5 minutes."
+      schema: { type: string }
+    HeaderSign:
+      name: X-Sign
+      in: header
+      required: true
+      description: "Hex HMAC-SHA256 of the X-Date value, keyed with your private token."
+      schema: { type: string }
+
+  responses:
+    ValidationError:
+      description: Validation failed. `error.message` details each invalid field.
+      content:
+        application/json:
+          example:
+            status: failed
+            error:
+              type: invalid_request_error
+              message:
+                amount: "must be at least 5 VES"
+    AuthError:
+      description: Authentication failed (token, X-Date or X-Sign invalid).
+      content:
+        application/json:
+          example:
+            status: failed
+            error:
+              code: DATE_INVALID
+              message: "El header X-Date es obligatorio."
+              hint: "Envía el header X-Date en UTC ISO-8601 con Z."
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          example:
+            status: failed
+            error:
+              message: "not found"
+
+  schemas:
+    Payout:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "Public identifier of the payout."
+        status:
+          type: string
+          enum: [register, processing, success, denied, rejected, to-liquidate, liquidated]
+        created_at:
+          type: string
+        commerce:
+          type: object
+          properties:
+            email: { type: string }
+            phone: { type: string }
+            order: { type: string }
+            subject: { type: string }
+            amount: { type: number }
+            bank:
+              type: object
+              properties:
+                name: { type: string }
+                document: { type: string }
+                document_type: { type: string }
+                code: { type: string }
+                type: { type: string, nullable: true }
+                num: { type: string }
+                methoad:
+                  type: string
+                  enum: [mobile, transfer]
+                  description: "Delivery method (field name kept for backward compatibility)."
+            urlnotify: { type: string, nullable: true }
+        wallet:
+          type: object
+          description: "The two wallet movements generated by the payout (amount and fee)."
+          properties:
+            payout:
+              $ref: "#/components/schemas/WalletMovement"
+            payout_tax:
+              $ref: "#/components/schemas/WalletMovement"
+
+    WalletMovement:
+      type: object
+      properties:
+        id: { type: string }
+        create_at: { type: string }
+        type:
+          type: string
+          enum: [income, expense]
+        subject: { type: string }
+        amount: { type: number }
+        balance:
+          type: number
+          description: "Wallet balance right after this movement."
+        currency: { type: string }
+
+    PaymentOrder:
+      type: object
+      properties:
+        token:
+          type: string
+          description: "Public identifier of the payment order (op_…)."
+        status:
+          type: string
+          enum: [created, pending, processing, under_review, retrying, completed,
+                 declined, attempts_exhausted, failed, canceled_user, canceled_system,
+                 expired, voided, refunded, partially_refunded, disputed, chargeback]
+        created_at:
+          type: string
+        redirect_url:
+          type: string
+          description: "Signed URL of the hosted payment page — send your customer here. Opaque: host and path depend on the environment and the payment method; use it verbatim, never build or parse it."
+        commerce:
+          type: object
+          properties:
+            order: { type: string }
+            subject: { type: string }
+            amount: { type: string }
+            additional_parameters:
+              type: object
+              additionalProperties: true
+        payer:
+          type: object
+          properties:
+            email: { type: string }
+            dni: { type: string, nullable: true }
+            phone: { type: string, nullable: true }
+        payment:
+          type: object
+          properties:
+            start: { type: string, nullable: true }
+            end: { type: string, nullable: true }
+            amount: { type: string }
+            fee: { type: string }
+            authorization:
+              type: string
+              nullable: true
+              description: "Bank reference, present when status = completed."
+            reason: { type: string, nullable: true }
+            gateway: { type: string, nullable: true }
+            type:
+              type: string
+              enum: [bank_transfer, mobile_payment, bank_card, default]
+            card:
+              type: object
+              properties:
+                last4digits: { type: string, nullable: true }
+                authorizationcode: { type: string, nullable: true }
+                installments: { type: integer, nullable: true }
+                method: { type: string, nullable: true }
+
+  examples:
+    PaymentOrderExample:
+      value:
+        token: "op_00000000000000000000000000000000"
+        status: "pending"
+        created_at: "2026-01-01 00:00:00"
+        redirect_url: "{base_url}/{payment_method}/op_00000000000000000000000000000000?signature=…"
+        commerce:
+          order: "ORDER0001"
+          subject: "Lorem ipsum dolor sit"
+          amount: "100.00"
+        payer:
+          email: "user@example.com"
+          dni: "V00000000"
+          phone: "04120000000"
+        payment:
+          start: null
+          end: null
+          amount: "0.00"
+          fee: "0.00"
+          authorization: null
+          reason: null
+          gateway: null
+          type: "mobile_payment"
+          card:
+            last4digits: null
+            authorizationcode: null
+            installments: null
+            method: null

@@ -1,0 +1,1639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Granve API — Documentation</title>
+<meta name="description" content="Granve REST API documentation — create payment orders, query transactions and test every endpoint live from your browser.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https: http://localhost:* http://127.0.0.1:*; base-uri 'none'; form-action 'none'">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230969da'/%3E%3Ctext x='32' y='45' font-size='38' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EG%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --bg2: #f6f8fa; --fg: #1f2328; --fg2: #59636e;
+    --border: #d1d9e0; --accent: #0969da; --accent-fg: #ffffff; --btn-bg: #0550ae;
+    --ok: #1a7f37; --err: #d1242f; --warn-bg: #fff8c5; --warn-border: #d4a72c;
+    --code-bg: #f6f8fa; --sidebar-w: 250px;
+    --method-get: #1a7f37; --method-post: #9a6700;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --bg2: #151b23; --fg: #f0f6fc; --fg2: #9198a1;
+      --border: #3d444d; --accent: #4493f8; --accent-fg: #ffffff; --btn-bg: #1f6feb;
+      --ok: #3fb950; --err: #f85149; --warn-bg: #3a3000; --warn-border: #9e6a03;
+      --code-bg: #151b23;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--fg); font-size: 15px; line-height: 1.6;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  #content a { text-decoration: underline; text-underline-offset: 2px; }
+  code, pre, textarea.body-editor, input.mono {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; font-size: 13px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+  pre code { background: none; border: none; padding: 0; }
+
+  /* Layout */
+  html { scroll-behavior: smooth; }
+  h1, h2, h3, section[id] { scroll-margin-top: 66px; }
+  #sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+    background: var(--bg2); border-right: 1px solid var(--border); overflow-y: auto; padding: 18px 0;
+    z-index: 30;
+  }
+  /* Contenido centrado en el espacio a la derecha del sidebar; min-width:0
+     en la columna para que los <pre> scrolleen dentro y no ensanchen la página. */
+  #main { margin-left: var(--sidebar-w); display: flex; justify-content: center; padding: 28px 40px 80px; }
+  #content { width: 100%; max-width: 960px; min-width: 0; }
+
+  /* Layout de dos paneles (doc | código) en pantallas anchas, estilo referencia */
+  .split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; margin: 14px 0; }
+  .codecol {
+    --bg: #0d1117; --bg2: #161b22; --fg: #e6edf3; --fg2: #9198a1;
+    --border: #30363d; --code-bg: #161b22; --accent: #4493f8; --btn-bg: #1f6feb;
+    background: #0d1117; border: 1px solid #30363d; border-radius: 12px;
+    padding: 14px 18px 18px; color: var(--fg); min-width: 0;
+  }
+  .codecol h3, .codecol h4 { color: var(--fg); margin-top: 6px; }
+  .codecol pre { background: var(--code-bg); border-color: var(--border); }
+  .split > .doc { min-width: 0; }
+  .split > .doc > :first-child { margin-top: 0; }
+  @media (min-width: 1200px) {
+    #content { max-width: 1560px; }
+    .split { grid-template-columns: minmax(0, 1fr) minmax(340px, 46%); align-items: start; }
+    .split > .doc { order: 1; }
+    .split > .codecol { order: 2; position: sticky; top: 24px; }
+  }
+  #topbar { display: none; }
+  #scrim { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 25; }
+  #scrim.show { display: block; }
+  #to-top {
+    position: fixed; right: 16px; bottom: 16px; z-index: 40;
+    width: 46px; height: 46px; border-radius: 50%; border: none;
+    background: var(--btn-bg); color: var(--accent-fg);
+    font-size: 20px; line-height: 1; cursor: pointer; display: none;
+    box-shadow: 0 4px 14px rgba(0,0,0,.3);
+  }
+  #to-top.show { display: block; }
+  @media (max-width: 900px) {
+    #topbar {
+      display: flex; align-items: center; gap: 10px;
+      position: fixed; top: 0; left: 0; right: 0; height: 52px; z-index: 20;
+      background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 12px;
+    }
+    #topbar .brand { font-weight: 700; font-size: 16px; }
+    #topbar .brand span { color: var(--accent); }
+    #menu-btn {
+      font-size: 20px; line-height: 1; padding: 7px 12px; border: 1px solid var(--border);
+      border-radius: 8px; background: var(--bg); color: var(--fg); cursor: pointer;
+    }
+    #sidebar {
+      width: 280px; max-width: 85vw; transform: translateX(-105%);
+      transition: transform .22s ease; box-shadow: 4px 0 24px rgba(0,0,0,.25);
+    }
+    #sidebar.open { transform: translateX(0); }
+    #main { margin-left: 0; padding: 70px 16px 80px; }
+    pre { font-size: 12.5px; }
+  }
+  #sidebar .brand { font-weight: 700; font-size: 18px; padding: 0 18px 10px; display: flex; align-items: center; gap: 6px; }
+  #sidebar .brand span { color: var(--accent); }
+  .lang-pill {
+    font-size: 11px; font-weight: 600; color: var(--fg2); border: 1px solid var(--border);
+    border-radius: 999px; padding: 2px 9px; white-space: nowrap; cursor: default;
+  }
+  #sidebar .brand .lang-pill { margin-left: auto; }
+  .nav-search { padding: 0 14px 10px; }
+  .nav-search input {
+    width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px;
+    background: var(--bg); color: var(--fg); font-size: 13px;
+  }
+  #sidebar nav a { display: block; padding: 5px 18px; color: var(--fg2); font-size: 14px; }
+  #sidebar nav a:hover { color: var(--fg); text-decoration: none; background: var(--border); }
+  .group-toggle {
+    display: flex; align-items: center; justify-content: space-between; width: 100%;
+    margin: 12px 0 2px; padding: 4px 18px; border: none; background: none; cursor: pointer;
+    font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--fg2);
+    font-weight: 600; font-family: inherit; text-align: left;
+  }
+  .group-toggle:hover { color: var(--fg); }
+  .group-toggle .chev { transition: transform .15s ease; font-size: 12px; }
+  .navgroup.collapsed .group-items { display: none; }
+  .navgroup.collapsed .chev { transform: rotate(-90deg); }
+  .nav-hidden { display: none !important; }
+  .nav-empty { padding: 8px 18px; font-size: 13px; color: var(--fg2); font-style: italic; }
+  #sidebar nav a .m { font-size: 10px; font-weight: 700; margin-right: 6px; }
+  .m.get { color: var(--method-get); } .m.post { color: var(--method-post); }
+
+  h1 { font-size: 30px; margin: 0 0 4px; }
+  h2 { font-size: 22px; margin: 48px 0 12px; padding-top: 18px; border-top: 1px solid var(--border); }
+  h3 { font-size: 17px; margin: 28px 0 8px; }
+  h4 { font-size: 14px; margin: 20px 0 6px; }
+  .sub { color: var(--fg2); margin: 0 0 18px; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0 18px; font-size: 14px; display: block; overflow-x: auto; }
+  th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
+  th { background: var(--bg2); font-weight: 600; }
+  td code { white-space: nowrap; }
+  .req { color: var(--err); font-size: 12px; font-weight: 600; }
+  .opt { color: var(--fg2); font-size: 12px; }
+  .note { background: var(--warn-bg); border: 1px solid var(--warn-border); border-radius: 8px; padding: 10px 14px; margin: 14px 0; font-size: 14px; }
+  .endpoint-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  .badge { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 6px; color: var(--accent-fg); }
+  .badge.post { background: var(--method-post); } .badge.get { background: var(--method-get); }
+  .path { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px; font-weight: 600; }
+
+  /* Console */
+  #console {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; margin: 22px 0;
+  }
+  #console h3 { margin: 0 0 10px; font-size: 15px; }
+  #console .row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  #console label { font-size: 12px; font-weight: 600; color: var(--fg2); display: block; margin-bottom: 3px; }
+  #console input, #console select {
+    width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font-size: 13px;
+  }
+  #console .col { flex: 1 1 220px; }
+  #console .hint { font-size: 12.5px; color: var(--fg2); margin: 4px 0 0; }
+
+  /* Tabs */
+  .tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--border); margin-top: 16px; }
+  .tabs button {
+    border: none; background: none; color: var(--fg2); padding: 7px 13px; cursor: pointer;
+    font-size: 13.5px; border-bottom: 2px solid transparent; font-family: inherit;
+  }
+  .tabs button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+  .codewrap { position: relative; }
+  .codewrap pre { margin-top: 10px; }
+  .copy-btn {
+    position: absolute; top: 18px; right: 10px; font-size: 12px; padding: 3px 10px;
+    border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg2); cursor: pointer;
+  }
+  .copy-btn:hover { color: var(--fg); }
+
+  /* Try it */
+  .tryit { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin: 18px 0 8px; background: var(--bg2); }
+  .tryit h4 { margin: 0 0 10px; }
+  .tryit .fields { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .tryit .f { flex: 1 1 180px; }
+  .tryit label { font-size: 12px; font-weight: 600; color: var(--fg2); display: block; margin-bottom: 3px; }
+  .tryit input {
+    width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font-size: 13px;
+  }
+  textarea.body-editor {
+    width: 100%; min-height: 170px; padding: 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--fg); font-size: 13px; line-height: 1.5; resize: vertical;
+  }
+  .run-btn {
+    background: var(--btn-bg); color: var(--accent-fg); border: none; border-radius: 7px;
+    padding: 8px 20px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .run-btn:disabled { opacity: .55; cursor: default; }
+  .result { margin-top: 12px; display: none; }
+  .result .status { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+  .result .status.ok { color: var(--ok); } .result .status.err { color: var(--err); }
+  .result .rheaders { font-size: 12.5px; color: var(--fg2); margin-bottom: 6px; }
+  .result pre { max-height: 420px; overflow: auto; }
+  /* Overrides móviles AL FINAL de la hoja para ganar la cascada sobre los estilos base */
+  @media (max-width: 900px) {
+    #sidebar nav a { padding: 11px 18px; }
+    .group-toggle { padding: 10px 18px; }
+    .nav-search input { padding: 11px 10px; }
+    #console input, #console select, .tryit input, textarea.body-editor { padding: 11px 10px; }
+    .copy-btn { padding: 9px 12px; }
+    #c-prod-ok { width: 20px; height: 20px; }
+    .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .tabs button { white-space: nowrap; padding: 10px 13px; }
+  }
+</style>
+</head>
+<body>
+
+<header id="topbar">
+  <button id="menu-btn" aria-label="Open menu" aria-expanded="false">☰</button>
+  <div class="brand">Granve <span>API</span></div>
+  <span class="lang-pill" style="margin-left:auto" title="Documentation language — more languages coming soon">🌐 EN</span>
+</header>
+<div id="scrim"></div>
+
+<aside id="sidebar">
+  <div class="brand">Granve <span>API</span>
+    <span class="lang-pill" id="lang-pill" title="Documentation language — more languages coming soon">🌐 EN</span>
+  </div>
+  <div class="nav-search">
+    <input id="nav-search" type="search" placeholder="Search endpoints…" autocomplete="off"
+      spellcheck="false" autocapitalize="off" aria-label="Search endpoints">
+  </div>
+  <nav id="nav">
+    <a href="#introduction" data-kw="welcome overview introduction status codes json rest">Introduction</a>
+    <a href="#endpoints" data-kw="base url endpoint production sandbox environment host">Endpoint</a>
+    <a href="#authentication" data-kw="authentication auth headers authorization bearer x-sign x-date sign date hmac sha256 signature token">Authentication</a>
+    <div class="navgroup collapsed">
+      <button class="group-toggle" aria-expanded="false" type="button">Guides <span class="chev">▾</span></button>
+      <div class="group-items">
+        <a href="#errors" data-kw="errors validation invalid_request_error api_error date_invalid 400 401 404 409 failed">Errors</a>
+        <a href="#webhooks" data-kw="webhooks notification callback return url redirect urlnotify terminal retry">Webhooks &amp; return URL</a>
+        <a href="#testing" data-kw="testing sandbox simulate test keys">Testing (sandbox)</a>
+        <a href="#console-anchor" data-kw="console try it run live credentials tokens execute">API console (try it)</a>
+      </div>
+    </div>
+    <div class="navgroup collapsed">
+      <button class="group-toggle" aria-expanded="false" type="button">Payment (PayIn) <span class="chev">▾</span></button>
+      <div class="group-items">
+        <a href="#payment-create" data-kw="payin post /v1.0/payment create payment order charge redirect_url amount"><span class="m post">POST</span>Create</a>
+        <a href="#payment-list" data-kw="payin get /v1.0/payment list payments pagination after_id cursor start_date end_date"><span class="m get">GET</span>List</a>
+        <a href="#payment-get" data-kw="payin get /v1.0/payment/token query payment order by token status"><span class="m get">GET</span>Get by token</a>
+        <a href="#payment-get-order" data-kw="payin get /v1.0/payment/order query payment by order id"><span class="m get">GET</span>Get by order</a>
+      </div>
+    </div>
+    <div class="navgroup collapsed">
+      <button class="group-toggle" aria-expanded="false" type="button">Payment (PayOut) <span class="chev">▾</span></button>
+      <div class="group-items">
+        <a href="#payout-create" data-kw="payout post /v1.0/payout create send money pago movil transfer bank beneficiary"><span class="m post">POST</span>Create</a>
+        <a href="#payout-list" data-kw="payout get /v1.0/payout list payouts pagination after_id cursor"><span class="m get">GET</span>List</a>
+        <a href="#payout-get" data-kw="payout get /v1.0/payout/id query payout by id status"><span class="m get">GET</span>Get by id</a>
+        <a href="#payout-get-order" data-kw="payout get /v1.0/payout/order query payout by order id"><span class="m get">GET</span>Get by order</a>
+      </div>
+    </div>
+    <div class="navgroup collapsed">
+      <button class="group-toggle" aria-expanded="false" type="button">Wallet <span class="chev">▾</span></button>
+      <div class="group-items">
+        <a href="#wallet-balance" data-kw="wallet get /v1.0/wallet/balance balance saldo funds"><span class="m get">GET</span>Balance</a>
+        <a href="#wallet-list" data-kw="wallet get /v1.0/wallet list movements ledger income expense"><span class="m get">GET</span>List</a>
+        <a href="#wallet-get" data-kw="wallet get /v1.0/wallet/id movement by id"><span class="m get">GET</span>Get by id</a>
+      </div>
+    </div>
+    <a href="#changelog" data-kw="changelog versions release history">Changelog</a>
+    <p class="nav-empty" id="nav-empty" hidden>No matches — try another term.</p>
+  </nav>
+</aside>
+
+<main id="main">
+<div id="content">
+
+<h1 id="introduction">Granve API</h1>
+<p class="sub">REST API for creating and managing payments — v1.0</p>
+
+<p>Welcome to the Granve API. It lets you create payment orders, redirect your customer to a hosted
+payment page, and query the state of every transaction of your account.</p>
+
+<p>The API is designed around REST principles: predictable URLs, JSON request and response bodies,
+and standard HTTP status codes. All responses are JSON, including errors.</p>
+
+<table>
+  <tr><th>Status code</th><th>Meaning</th></tr>
+  <tr><td><code>200</code></td><td>Request succeeded.</td></tr>
+  <tr><td><code>400</code></td><td>Validation failed. The <code>error.message</code> object details each invalid field.</td></tr>
+  <tr><td><code>401</code></td><td>Authentication failed (token, <code>X-Date</code> or <code>X-Sign</code> header invalid).</td></tr>
+  <tr><td><code>404</code></td><td>Resource not found.</td></tr>
+  <tr><td><code>409</code></td><td>Conflict — the <code>order</code> identifier already exists for your account.</td></tr>
+  <tr><td><code>500</code></td><td>Internal server error.</td></tr>
+</table>
+
+<h2 id="endpoints">Endpoint</h2>
+<p>If you have a Granve account, you can access the REST API through the following base URLs:</p>
+<table>
+  <tr><th>Environment</th><th>Base URL</th></tr>
+  <tr><td>Production</td><td><code>https://api.granve.com</code></td></tr>
+  <tr><td>Sandbox</td><td><code>https://sandbox-api.granve.com</code></td></tr>
+</table>
+<p>The Production endpoint creates real transactions. The Sandbox endpoint lets you test your
+integration without affecting real data.</p>
+
+<h2 id="authentication">Authentication</h2>
+<div class="split">
+<div class="doc">
+<p>Every request must include <strong>three headers</strong>. Replace
+<code>your_public_token</code> and <code>your_private_token</code> with the access keys provided
+for your account.</p>
+
+<table>
+  <tr><th>Header</th><th>Value</th></tr>
+  <tr><td><code>Authorization</code></td><td><code>Bearer your_public_token</code></td></tr>
+  <tr><td><code>X-Date</code></td><td>Current timestamp in UTC, ISO-8601 with explicit <code>Z</code> suffix.
+      It must be within <strong>±5 minutes</strong> of server time.<br>
+      Format: <code>^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$</code></td></tr>
+  <tr><td><code>X-Sign</code></td><td>Hex HMAC-SHA256 of the <code>X-Date</code> value, keyed with your private token:
+      <code>HMAC_SHA256(X-Date, your_private_token)</code>.<br>
+      Format: <code>^[a-f0-9]{64}$</code></td></tr>
+</table>
+
+<p>If the <code>X-Date</code> header is missing, malformed, not UTC or outside the ±5-minute window,
+the API answers <code>401</code> with <code>error.code = "DATE_INVALID"</code> and a hint containing
+a valid example timestamp.</p>
+
+</div>
+<div class="codecol">
+<h3>Signing a request in your language</h3>
+<div id="auth-samples"></div>
+</div>
+</div>
+
+<h2 id="errors">Errors</h2>
+<p>The HTTP status code is the primary signal (see the <a href="#introduction">status table</a>).
+Every error body follows the same envelope:</p>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "type": "invalid_request_error",
+    "message": {
+      "amount": "must be at least 5 VES",
+      "order": "required"
+    }
+  }
+}</code></pre>
+<table>
+  <tr><th>error.type</th><th>Meaning</th></tr>
+  <tr><td><code>invalid_request_error</code></td><td>Your request failed validation — <code>error.message</code> lists each invalid field and the reason. Fix the request; do not retry as-is.</td></tr>
+  <tr><td><code>api_error</code></td><td>Something failed on Granve's side while processing a valid request. Safe to retry with backoff.</td></tr>
+</table>
+<p>Authentication failures return <code>401</code>. A missing or invalid <code>X-Date</code>
+header has a dedicated code and a hint with a valid example timestamp:</p>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "code": "DATE_INVALID",
+    "message": "El header X-Date es obligatorio.",
+    "hint": "Envía el header X-Date en UTC ISO-8601 con Z. Ejemplo (ahora): 2026-07-17T14:20:30Z",
+    "example": "2026-07-17T14:20:30Z",
+    "request_id": "…"
+  }
+}</code></pre>
+<p>Lookups that match nothing return <code>404</code> with
+<code>{"status": "failed", "error": {"message": "not found"}}</code>.</p>
+
+<h2 id="webhooks">Webhooks &amp; return URL</h2>
+<p>Your <strong>webhook URL</strong> and <strong>return URL</strong> are registered per account
+during onboarding — they are not sent per request. Contact Granve to set or change them.</p>
+
+<h3>PayIn webhook (server-to-server)</h3>
+<p>When a payment order reaches a <strong>terminal</strong> state
+(<code>completed</code>, <code>attempts_exhausted</code>, <code>expired</code>,
+<code>canceled_user</code>), Granve sends <strong>one</strong> notification to your registered
+webhook URL:</p>
+<ul>
+  <li><strong>Request:</strong> <code>POST</code> with the parameters both appended to the URL as a
+  query string and repeated as JSON body:</li>
+</ul>
+<pre><code>POST https://your-webhook.example.com/granve?token=op_000…&amp;status=completed&amp;order=ORDER0001
+Content-Type: application/json
+
+{
+  "token": "op_00000000000000000000000000000000",
+  "status": "completed",
+  "order": "ORDER0001"
+}</code></pre>
+<ul>
+  <li><strong>Acknowledge:</strong> respond with any <code>2xx</code> (an empty body is fine).
+  Anything else counts as a failed delivery.</li>
+  <li><strong>Retries:</strong> failed deliveries are retried up to <strong>3 times</strong> with a
+  short backoff. After that the delivery is logged as failed; a manual re-notification can be
+  requested.</li>
+  <li><strong>One-shot:</strong> the same <code>token</code> + <code>status</code> pair is never
+  delivered twice.</li>
+</ul>
+<div class="note"><strong>Always verify before delivering goods:</strong> the webhook body is not
+signed. Treat it as a hint — on reception, call
+<a href="#payment-get"><code>GET /v1.0/payment/{token}</code></a> (authenticated) and trust only
+that response as the source of truth for the order state and amount.</div>
+
+<h3>Payer return (browser redirect)</h3>
+<p>After finishing (or abandoning) the hosted payment page, the payer's browser is redirected to
+your registered return URL with the same three parameters appended:
+<code>?token=…&amp;status=…&amp;order=…</code>. This is a UX signal only — the webhook plus the
+authenticated query are the reliable channel.</p>
+
+<h3>PayOut notification</h3>
+<p>For payouts you may pass <code>urlnotify</code> per request. When the payout is processed, Granve
+sends <code>POST</code> with JSON body <code>{"token": "&lt;payout id&gt;"}</code> to that URL — then
+query <a href="#payout-get"><code>GET /v1.0/payout/{id}</code></a> to read the final state.</p>
+
+<h2 id="testing">Testing (sandbox)</h2>
+<p>Use your <strong>sandbox keys</strong> against <code>https://sandbox-api.granve.com</code>. The
+sandbox mirrors the production API contract; bank confirmations are simulated, so no real money
+moves.</p>
+<ul>
+  <li><strong>Full PayIn flow:</strong> create an order, open the returned <code>redirect_url</code>
+  in a browser to see the hosted payment page, then query the order by token or by your own
+  <code>order</code> id.</li>
+  <li><strong>Duplicate handling:</strong> re-send the same <code>order</code> value to see the
+  <code>409</code> conflict response.</li>
+  <li><strong>Validation:</strong> send <code>amount</code> below the minimum or a malformed
+  <code>phone</code>/<code>document</code> to exercise <code>400</code> responses.</li>
+  <li><strong>Signature errors:</strong> send a stale <code>X-Date</code> (&gt;5 min old) to see the
+  <code>DATE_INVALID</code> response.</li>
+</ul>
+<p>The <a href="#console-anchor">API console</a> below targets sandbox by default.</p>
+
+<h2 id="console-anchor">API console — try it live</h2>
+<div id="console">
+  <h3>Your credentials</h3>
+  <div class="row">
+    <div class="col">
+      <label for="c-env">Environment</label>
+      <select id="c-env">
+        <option value="https://sandbox-api.granve.com">Sandbox — sandbox-api.granve.com</option>
+        <option value="https://api.granve.com">Production — api.granve.com</option>
+        <option value="custom">Custom…</option>
+      </select>
+    </div>
+    <div class="col" id="c-custom-wrap" style="display:none">
+      <label for="c-custom">Custom base URL</label>
+      <input id="c-custom" class="mono" placeholder="https://localhost:8000">
+    </div>
+    <div class="col">
+      <label for="c-pub">Public token</label>
+      <input id="c-pub" class="mono" placeholder="prkey-…" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off">
+    </div>
+    <div class="col">
+      <label for="c-priv">Private token</label>
+      <div style="display:flex;gap:6px">
+        <input id="c-priv" class="mono" type="password" placeholder="prscr-…" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off">
+        <button id="c-priv-load" class="run-btn" type="button" style="padding:6px 14px;font-size:13px">Load</button>
+      </div>
+      <p class="hint" id="c-priv-state">Not loaded — paste your key and press Load.</p>
+    </div>
+  </div>
+  <p class="hint"><strong>How your private token is protected:</strong> it is <em>never stored</em>.
+  When you press <em>Load</em> it is imported as a <em>non-extractable</em> signing key
+  (Web&nbsp;Crypto), the input is wiped and the raw value is discarded — from that moment scripts can
+  ask the key to sign, but can no longer read it. It lives in memory only and disappears when you
+  close or reload the page. Only the environment and the public token are remembered
+  (<code>localStorage</code>). The <code>X-Date</code>&nbsp;+&nbsp;<code>X-Sign</code> pair is computed
+  automatically on every run.</p>
+  <p class="hint"><strong>Honest limit:</strong> no web page can defend a pasted secret against a
+  malicious browser extension that is already watching the page. For testing, use
+  <strong>sandbox</strong> keys and ideally a browser profile with no extensions installed. Rotate any
+  key you suspect exposed.</p>
+  <label class="hint" style="display:flex;align-items:flex-start;gap:8px;margin-top:8px;cursor:pointer">
+    <input type="checkbox" id="c-prod-ok" style="width:auto;margin-top:3px">
+    <span>Allow runs against <strong>Production</strong> (off by default — using production keys in
+    a browser is discouraged)</span>
+  </label>
+  <p class="hint" id="crypto-warn" style="display:none;color:var(--err)">
+  ⚠ This page is not running in a secure context (https), so the browser refuses to compute
+  HMAC signatures. Open the docs over https (GitHub Pages) or <code>localhost</code>.</p>
+</div>
+<p>Each endpoint below has a <strong>Run</strong> panel wired to these credentials. If a request fails
+with a network error, the API host most likely does not allow this page's origin in its CORS
+configuration (<code>CORS_ALLOWED_ORIGINS</code>).</p>
+
+<h2 id="payin">Payment (PayIn)</h2>
+<p>A <em>payment order</em> represents a charge to your customer. You create it, redirect the customer
+to the returned <code>redirect_url</code> (the hosted payment page), and the customer pays through the
+selected method. When the order reaches a terminal state, Granve notifies the webhook URL registered
+for your account, and the customer is sent back to your registered return URL.</p>
+
+<div class="split">
+<div class="doc">
+<h3 style="margin-top:0">The payment order object</h3>
+<div class="note"><strong><code>redirect_url</code> is opaque:</strong> its host follows the
+environment you called (production or sandbox) and its path depends on the payment method that will
+process the order. Always use the returned value <em>verbatim</em> — never build, modify or parse it.</div>
+<p><code>status</code> is one of:</p>
+<table>
+  <tr><th>Status</th><th>Meaning</th></tr>
+  <tr><td><code>created</code> / <code>pending</code></td><td>Order created, waiting for the payer.</td></tr>
+  <tr><td><code>processing</code> / <code>under_review</code> / <code>retrying</code></td><td>Payment being verified.</td></tr>
+  <tr><td><code>completed</code></td><td>Payment confirmed. <code>payment.authorization</code> carries the bank reference.</td></tr>
+  <tr><td><code>declined</code> / <code>failed</code> / <code>attempts_exhausted</code></td><td>Payment did not complete.</td></tr>
+  <tr><td><code>canceled_user</code> / <code>canceled_system</code></td><td>Canceled by the payer or by Granve.</td></tr>
+  <tr><td><code>expired</code></td><td>The order expired before payment.</td></tr>
+  <tr><td><code>voided</code> / <code>refunded</code> / <code>partially_refunded</code> / <code>disputed</code> / <code>chargeback</code></td><td>Post-payment states.</td></tr>
+</table>
+</div>
+<div class="codecol">
+<h4>Object example</h4>
+<pre><code>{
+  "token": "op_00000000000000000000000000000000",
+  "status": "pending",
+  "created_at": "2026-01-01 00:00:00",
+  "redirect_url": "{base_url}/{payment_method}/op_00000000000000000000000000000000?signature=…",
+  "commerce": {
+    "order": "ORDER0001",
+    "subject": "Lorem ipsum dolor sit",
+    "amount": "100.00"
+  },
+  "payer": {
+    "email": "user@example.com",
+    "dni": "V00000000",
+    "phone": "04120000000"
+  },
+  "payment": {
+    "start": null,
+    "end": null,
+    "amount": "0.00",
+    "fee": "0.00",
+    "authorization": null,
+    "reason": null,
+    "gateway": null,
+    "type": "mobile_payment",
+    "card": {
+      "last4digits": null,
+      "authorizationcode": null,
+      "installments": null,
+      "method": null
+    }
+  }
+}</code></pre>
+</div>
+</div>
+
+<!-- ======================= CREATE ======================= -->
+<section id="payment-create"></section>
+
+<!-- ======================= LIST ======================= -->
+<section id="payment-list"></section>
+
+<!-- ======================= GET ======================= -->
+<section id="payment-get"></section>
+
+<!-- ======================= GET BY ORDER ======================= -->
+<section id="payment-get-order"></section>
+
+<h2 id="payout">Payment (PayOut)</h2>
+<p>A <em>payout</em> sends money from your Granve wallet balance to a beneficiary's bank —
+by <strong>Pago Móvil</strong> (11-digit mobile number) or <strong>bank transfer</strong>
+(20-digit account number). The amount plus the payout fee is debited from your wallet when the
+payout is accepted.</p>
+
+<div class="split">
+<div class="doc">
+<h3 style="margin-top:0">The payout object</h3>
+<p><code>wallet.payout</code> and <code>wallet.payout_tax</code> are the two wallet movements the
+payout generated (amount and fee). The field name <code>methoad</code> (<em>sic</em>) is kept for
+backward compatibility; its values are <code>mobile</code> or <code>transfer</code>.</p>
+<p><code>status</code> is one of:</p>
+<table>
+  <tr><th>Status</th><th>Meaning</th></tr>
+  <tr><td><code>register</code></td><td>Payout accepted and queued; wallet already debited.</td></tr>
+  <tr><td><code>processing</code></td><td>Being executed against the bank.</td></tr>
+  <tr><td><code>success</code></td><td>Money delivered to the beneficiary.</td></tr>
+  <tr><td><code>denied</code> / <code>rejected</code></td><td>The bank refused the operation.</td></tr>
+  <tr><td><code>to-liquidate</code> / <code>liquidated</code></td><td>Settlement lifecycle states.</td></tr>
+</table>
+</div>
+<div class="codecol">
+<h4>Object example</h4>
+<pre><code>{
+  "id": "1000000000000001",
+  "status": "register",
+  "created_at": "2026-01-01 00:00:00",
+  "commerce": {
+    "email": "user@example.com",
+    "phone": "04120000000",
+    "order": "PO-0001",
+    "subject": "Lorem ipsum payout",
+    "amount": 100,
+    "bank": {
+      "name": "Lorem Ipsum",
+      "document": "00000000",
+      "document_type": "V",
+      "code": "0102",
+      "type": null,
+      "num": "04120000000",
+      "methoad": "mobile"
+    },
+    "urlnotify": "https://example.com/notify"
+  },
+  "wallet": {
+    "payout": {
+      "id": "1000000000000002",
+      "create_at": "2026-01-01 00:00:00",
+      "type": "expense",
+      "subject": "Cargo payout - 1000000000000002",
+      "amount": 100,
+      "currency": "VES",
+      "deposit": { "date": null, "amount": 0 }
+    },
+    "payout_tax": {
+      "id": "1000000000000003",
+      "create_at": "2026-01-01 00:00:00",
+      "type": "expense",
+      "subject": "Cargo tax payout",
+      "amount": 1,
+      "currency": "VES"
+    }
+  }
+}</code></pre>
+</div>
+</div>
+
+<section id="payout-create"></section>
+<section id="payout-list"></section>
+<section id="payout-get"></section>
+<section id="payout-get-order"></section>
+
+<h2 id="wallet">Wallet</h2>
+<p>Your wallet is the ledger of your Granve balance: every PayIn settlement, payout, fee and deposit
+is a <em>movement</em>. Balances and movements are per currency (<code>VES</code>).</p>
+
+<div class="split">
+<div class="doc">
+<h3 style="margin-top:0">The movement object</h3>
+<p><code>type</code> is <code>income</code> (credits your balance) or <code>expense</code> (debits
+it). <code>balance</code> is the wallet balance right after this movement.</p>
+</div>
+<div class="codecol">
+<h4>Object example</h4>
+<pre><code>{
+  "id": "1000000000000002",
+  "create_at": "2026-01-01 00:00:00",
+  "type": "expense",
+  "subject": "Cargo payout - 1000000000000002",
+  "amount": 100.00,
+  "balance": 900.00,
+  "currency": "VES"
+}</code></pre>
+</div>
+</div>
+
+<section id="wallet-balance"></section>
+<section id="wallet-list"></section>
+<section id="wallet-get"></section>
+
+<h2 id="changelog">Changelog</h2>
+<table>
+  <tr><th>Version</th><th>Date</th><th>Changes</th></tr>
+  <tr><td><code>1.0.0</code></td><td>2026-07</td><td>Initial release of the Granve API
+  documentation: Payment (PayIn), Payment (PayOut) and Wallet endpoints; guides for authentication,
+  errors, webhooks and sandbox testing; live API console with automatic request
+  signing; code examples in 7 languages.</td></tr>
+</table>
+
+</div>
+</main>
+
+<button id="to-top" aria-label="Back to top" title="Back to top">↑</button>
+
+<script>
+"use strict";
+
+/* ---------------------------------------------------------------- helpers */
+const $ = (s, el) => (el || document).querySelector(s);
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function cleanIsoNow() {
+  return new Date().toISOString().replace(/\.\d+Z$/, "Z");
+}
+
+/* The private token is imported as a NON-EXTRACTABLE CryptoKey and the raw
+   string is discarded: after import, scripts can sign with it but can never
+   read it back. Memory only — gone on reload. Never persisted anywhere. */
+let privKey = null;
+
+async function importPrivateKey(raw) {
+  const enc = new TextEncoder();
+  return crypto.subtle.importKey("raw", enc.encode(raw), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+}
+
+async function signWithPrivateKey(msg) {
+  const sig = await crypto.subtle.sign("HMAC", privKey, new TextEncoder().encode(msg));
+  return [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+/* ------------------------------------------------------------- mobile nav */
+(function initNav() {
+  const sidebar = $("#sidebar");
+  const scrim = $("#scrim");
+  const menuBtn = $("#menu-btn");
+  const setMenu = open => {
+    sidebar.classList.toggle("open", open);
+    scrim.classList.toggle("show", open);
+    menuBtn.setAttribute("aria-expanded", String(open));
+  };
+  menuBtn.addEventListener("click", () => setMenu(!sidebar.classList.contains("open")));
+  scrim.addEventListener("click", () => setMenu(false));
+  document.addEventListener("keydown", e => { if (e.key === "Escape") setMenu(false); });
+  sidebar.querySelectorAll("nav a").forEach(a => a.addEventListener("click", () => setMenu(false)));
+
+  const toTop = $("#to-top");
+  window.addEventListener("scroll", () => {
+    toTop.classList.toggle("show", window.scrollY > 500);
+  }, { passive: true });
+  toTop.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+
+  /* grupos colapsables */
+  document.querySelectorAll(".group-toggle").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const group = btn.closest(".navgroup");
+      const collapsed = group.classList.toggle("collapsed");
+      btn.setAttribute("aria-expanded", String(!collapsed));
+    });
+  });
+
+  /* buscador de endpoints */
+  const searchInput = $("#nav-search");
+  searchInput.addEventListener("input", () => {
+    const q = searchInput.value.trim().toLowerCase();
+    const links = document.querySelectorAll("#nav a");
+    let visible = 0;
+    links.forEach(a => {
+      const hay = (a.textContent + " " + (a.dataset.kw || "")).toLowerCase();
+      const match = !q || hay.includes(q);
+      a.classList.toggle("nav-hidden", !match);
+      if (match) visible++;
+    });
+    document.querySelectorAll("#nav .navgroup").forEach(g => {
+      const any = g.querySelectorAll(".group-items a:not(.nav-hidden)").length > 0;
+      g.classList.toggle("nav-hidden", q && !any);
+      // con búsqueda activa se expanden los grupos con match; al limpiar vuelven al colapsado por defecto
+      const expand = Boolean(q && any);
+      g.classList.toggle("collapsed", !expand);
+      g.querySelector(".group-toggle").setAttribute("aria-expanded", String(expand));
+    });
+    $("#nav-empty").hidden = !(q && visible === 0);
+  });
+  searchInput.addEventListener("keydown", e => {
+    if (e.key === "Escape") { searchInput.value = ""; searchInput.dispatchEvent(new Event("input")); }
+  });
+})();
+
+/* ------------------------------------------------------------ credentials */
+const LS_KEY = "granve-docs-console";
+function loadCreds() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; }
+}
+function saveCreds() {
+  localStorage.setItem(LS_KEY, JSON.stringify({
+    env: $("#c-env").value, custom: $("#c-custom").value,
+    pub: $("#c-pub").value,
+  }));
+}
+function baseUrl() {
+  const env = $("#c-env").value;
+  const url = env === "custom" ? ($("#c-custom").value || "").trim() : env;
+  return url.replace(/\/+$/, "");
+}
+(function initConsole() {
+  const c = loadCreds();
+  if (c.env) $("#c-env").value = c.env;
+  if (c.custom) $("#c-custom").value = c.custom;
+  if (c.pub) $("#c-pub").value = c.pub;
+  if (c.priv) saveCreds(); // purge private tokens persisted by older versions of this page
+  const syncCustom = () => { $("#c-custom-wrap").style.display = $("#c-env").value === "custom" ? "" : "none"; };
+  syncCustom();
+  ["c-env", "c-custom", "c-pub"].forEach(id =>
+    $("#" + id).addEventListener("input", () => { syncCustom(); saveCreds(); renderAllSamples(); }));
+
+  async function loadPrivKey() {
+    const raw = $("#c-priv").value.trim();
+    const state = $("#c-priv-state");
+    if (!raw) { state.textContent = "Nothing to load — paste your key first."; return; }
+    if (!window.crypto || !window.crypto.subtle) {
+      state.textContent = "Unavailable: this page must run over https (or localhost).";
+      return;
+    }
+    try {
+      privKey = await importPrivateKey(raw);
+      $("#c-priv").value = "";
+      $("#c-priv").placeholder = "●●●●●●●●  key loaded";
+      state.textContent = "Key loaded ✓ — memory only, non-extractable; gone when you close or reload the page.";
+    } catch (err) {
+      state.textContent = "Could not import the key: " + err.message;
+    }
+  }
+  $("#c-priv-load").addEventListener("click", loadPrivKey);
+  $("#c-priv").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); loadPrivKey(); } });
+
+  if (!window.isSecureContext || !window.crypto || !window.crypto.subtle) {
+    $("#crypto-warn").style.display = "";
+  }
+})();
+
+/* -------------------------------------------------------- code generators */
+const LANGS = ["Bash", "JavaScript", "Python", "PHP", "Go", "Java", "C"];
+
+function bodyLines(body, indent) {
+  return JSON.stringify(body, null, 2).split("\n").map((l, i) => (i === 0 ? l : indent + l)).join("\n");
+}
+
+const GEN = {
+  Bash(ctx) {
+    let s = `#!/usr/bin/env bash
+PUBLIC_TOKEN="your_public_token"
+PRIVATE_TOKEN="your_private_token"
+BASE_URL="${ctx.base}"
+
+DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+SIGN=$(printf '%s' "$DATE" | openssl dgst -sha256 -hmac "$PRIVATE_TOKEN" -hex | sed 's/^.* //')
+
+curl -s -X ${ctx.method} "$BASE_URL${ctx.path}" \\
+  -H "Authorization: Bearer $PUBLIC_TOKEN" \\
+  -H "X-Date: $DATE" \\
+  -H "X-Sign: $SIGN"`;
+    if (ctx.body) s += ` \\
+  -H "Content-Type: application/json" \\
+  -d '${JSON.stringify(ctx.body, null, 2)}'`;
+    return s;
+  },
+
+  JavaScript(ctx) {
+    let s = `// Node.js 18+ (built-in fetch) — works identically in the browser.
+const crypto = require('crypto');
+
+const PUBLIC_TOKEN = 'your_public_token';
+const PRIVATE_TOKEN = 'your_private_token';
+const BASE_URL = '${ctx.base}';
+
+const date = new Date().toISOString().replace(/\\.\\d+Z$/, 'Z');
+const sign = crypto.createHmac('sha256', PRIVATE_TOKEN).update(date).digest('hex');
+
+const res = await fetch(\`\${BASE_URL}${ctx.path}\`, {
+  method: '${ctx.method}',
+  headers: {
+    'Authorization': \`Bearer \${PUBLIC_TOKEN}\`,
+    'X-Date': date,
+    'X-Sign': sign,`;
+    if (ctx.body) s += `
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify(${bodyLines(ctx.body, "  ")}),
+});`;
+    else s += `
+  },
+});`;
+    s += `
+console.log(res.status, await res.json());`;
+    return s;
+  },
+
+  Python(ctx) {
+    let s = `import hashlib
+import hmac
+import time
+
+import requests
+
+PUBLIC_TOKEN = 'your_public_token'
+PRIVATE_TOKEN = 'your_private_token'
+BASE_URL = '${ctx.base}'
+
+date = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+sign = hmac.new(PRIVATE_TOKEN.encode(), date.encode(), hashlib.sha256).hexdigest()
+
+headers = {
+    'Authorization': f'Bearer {PUBLIC_TOKEN}',
+    'X-Date': date,
+    'X-Sign': sign,
+}
+`;
+    if (ctx.body) s += `payload = ${JSON.stringify(ctx.body, null, 4).replace(/null/g, "None")}
+
+r = requests.${ctx.method.toLowerCase()}(f'{BASE_URL}${ctx.path}', json=payload, headers=headers)`;
+    else s += `r = requests.${ctx.method.toLowerCase()}(f'{BASE_URL}${ctx.path}', headers=headers)`;
+    s += `
+print(r.status_code, r.json())`;
+    return s;
+  },
+
+  PHP(ctx) {
+    let s = `<?php
+
+$publicToken = 'your_public_token';
+$privateToken = 'your_private_token';
+$baseUrl = '${ctx.base}';
+
+$date = gmdate('Y-m-d\\TH:i:s\\Z');
+$sign = hash_hmac('sha256', $date, $privateToken);
+
+$ch = curl_init($baseUrl . '${ctx.path}');
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Authorization: Bearer ' . $publicToken,
+    'X-Date: ' . $date,
+    'X-Sign: ' . $sign,`;
+    if (ctx.body) s += `
+    'Content-Type: application/json',
+]);
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(${phpArray(ctx.body)}));`;
+    else s += `
+]);`;
+    s += `
+
+$response = curl_exec($ch);
+echo curl_getinfo($ch, CURLINFO_HTTP_CODE), PHP_EOL, $response, PHP_EOL;`;
+    return s;
+  },
+
+  Go(ctx) {
+    let s = `package main
+
+import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+)
+
+func main() {
+	publicToken := "your_public_token"
+	privateToken := "your_private_token"
+	baseURL := "${ctx.base}"
+
+	date := time.Now().UTC().Format("2006-01-02T15:04:05Z")
+	mac := hmac.New(sha256.New, []byte(privateToken))
+	mac.Write([]byte(date))
+	sign := hex.EncodeToString(mac.Sum(nil))
+
+`;
+    if (ctx.body) s += `	body := \`${JSON.stringify(ctx.body)}\`
+	req, _ := http.NewRequest("${ctx.method}", baseURL+"${ctx.path}", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+`;
+    else s += `	req, _ := http.NewRequest("${ctx.method}", baseURL+"${ctx.path}", strings.NewReader(""))
+`;
+    s += `	req.Header.Set("Authorization", "Bearer "+publicToken)
+	req.Header.Set("X-Date", date)
+	req.Header.Set("X-Sign", sign)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.StatusCode, string(out))
+}`;
+    return s;
+  },
+
+  Java(ctx) {
+    let s = `import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.ZonedDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+
+public class GranveRequest {
+    public static void main(String[] args) throws Exception {
+        String publicToken = "your_public_token";
+        String privateToken = "your_private_token";
+        String baseUrl = "${ctx.base}";
+
+        String date = ZonedDateTime.now(ZoneOffset.UTC)
+            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));
+
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(privateToken.getBytes("UTF-8"), "HmacSHA256"));
+        StringBuilder sign = new StringBuilder();
+        for (byte b : mac.doFinal(date.getBytes("UTF-8"))) {
+            sign.append(String.format("%02x", b));
+        }
+
+`;
+    if (ctx.body) s += `        String body = ${JSON.stringify(JSON.stringify(ctx.body))};
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(baseUrl + "${ctx.path}"))
+            .header("Authorization", "Bearer " + publicToken)
+            .header("X-Date", date)
+            .header("X-Sign", sign.toString())
+            .header("Content-Type", "application/json")
+            .method("${ctx.method}", HttpRequest.BodyPublishers.ofString(body))
+            .build();
+`;
+    else s += `        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(baseUrl + "${ctx.path}"))
+            .header("Authorization", "Bearer " + publicToken)
+            .header("X-Date", date)
+            .header("X-Sign", sign.toString())
+            .GET()
+            .build();
+`;
+    s += `
+        HttpResponse<String> response = HttpClient.newHttpClient()
+            .send(request, HttpResponse.BodyHandlers.ofString());
+        System.out.println(response.statusCode() + " " + response.body());
+    }
+}`;
+    return s;
+  },
+
+  C(ctx) {
+    let s = `/* cc granve_request.c -lcurl -lcrypto */
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include <curl/curl.h>
+#include <openssl/hmac.h>
+
+#define BASE_URL "${ctx.base}"
+
+int main(void) {
+    const char *public_token = "your_public_token";
+    const char *private_token = "your_private_token";
+
+    char date[32];
+    time_t now = time(NULL);
+    strftime(date, sizeof date, "%Y-%m-%dT%H:%M:%SZ", gmtime(&now));
+
+    unsigned char *digest = HMAC(EVP_sha256(),
+        private_token, (int) strlen(private_token),
+        (const unsigned char *) date, strlen(date), NULL, NULL);
+    char sign[65];
+    for (int i = 0; i < 32; i++) {
+        sprintf(sign + i * 2, "%02x", digest[i]);
+    }
+
+    char header_auth[256], header_date[64], header_sign[96];
+    snprintf(header_auth, sizeof header_auth, "Authorization: Bearer %s", public_token);
+    snprintf(header_date, sizeof header_date, "X-Date: %s", date);
+    snprintf(header_sign, sizeof header_sign, "X-Sign: %s", sign);
+
+    CURL *curl = curl_easy_init();
+    struct curl_slist *headers = NULL;
+    headers = curl_slist_append(headers, header_auth);
+    headers = curl_slist_append(headers, header_date);
+    headers = curl_slist_append(headers, header_sign);
+`;
+    if (ctx.body) s += `    headers = curl_slist_append(headers, "Content-Type: application/json");
+    const char *body = ${JSON.stringify(JSON.stringify(ctx.body))};
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
+`;
+    s += `    curl_easy_setopt(curl, CURLOPT_URL, BASE_URL "${ctx.path}");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "${ctx.method}");
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        fprintf(stderr, "error: %s\\n", curl_easy_strerror(res));
+    }
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    return 0;
+}`;
+    return s;
+  },
+};
+
+function phpValue(v, indent) {
+  if (v === null) return "null";
+  if (typeof v === "number") return String(v);
+  if (typeof v === "object") {
+    const inner = Object.entries(v)
+      .map(([k, x]) => `${indent}    '${k}' => ${phpValue(x, indent + "    ")}`)
+      .join(",\n");
+    return `[\n${inner},\n${indent}]`;
+  }
+  return `'${String(v).replace(/'/g, "\\'")}'`;
+}
+function phpArray(obj) {
+  return phpValue(obj, "");
+}
+
+/* ----------------------------------------------------------- registry */
+const CREATE_BODY = {
+  payment: "YOURMETHODTOKEN",
+  amount: "100.00",
+  email: "user@example.com",
+  order: "ORDER0001",
+  subject: "Lorem ipsum dolor sit",
+  document: "V00000000",
+  phone: "04120000000",
+};
+
+const ENDPOINTS = [
+  {
+    id: "payment-create",
+    method: "POST",
+    path: "/v1.0/payment",
+    title: "Create a payment order",
+    desc: `Creates a payment order for your account and returns the <a href="#payin">payment order object</a>,
+including the <code>redirect_url</code> where you must send your customer to pay. Store the returned
+<code>token</code>: it is the identifier for every later query.
+<p>Once the payer finishes, the terminal result is delivered <strong>once</strong> to the webhook URL
+registered for your account, and the payer is redirected to your registered return URL with
+<code>?token=…&amp;status=…&amp;order=…</code> appended.</p>`,
+    fieldsTitle: "Body parameters",
+    fields: [
+      ["payment", "string", true, "Token of the payment method to charge with, from the methods enabled for your account (provided during onboarding).", "^[A-Za-z0-9]+$"],
+      ["amount", "string | number", true, "Amount to charge. Decimal with up to 2 places; minimum <strong>5 VES</strong>.", "^\\d+(\\.\\d{1,2})?$"],
+      ["email", "string", true, "Payer's email. Must be a valid address.", "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"],
+      ["order", "string", true, "Your unique order identifier, alphanumeric. Reusing an existing value returns <code>409</code>.", "^[a-zA-Z0-9]+$"],
+      ["subject", "string", true, "Description of the product or service.", "^[a-zA-Z0-9 ]+$"],
+      ["document", "string", false, "Payer's identity document: type letter + digits (e.g. <code>V00000000</code>). Allowed types: V, E, J.", "^[VEJ]\\d{7,10}$"],
+      ["phone", "string", false, "Payer's phone, format <code>04XXNNNNNNN</code> (prefixes 0412, 0414, 0416, 0422, 0424, 0426).", "^(0412|0414|0416|0422|0424|0426)\\d{7}$"],
+      ["additional_parameters", "object", false, "Free key/value object echoed back inside <code>commerce.additional_parameters</code> in every response."],
+      ["payer", "object", false, "Optional prefill for background bank verification: <code>phone</code>, <code>document</code>, <code>reference</code>, <code>bank</code>, <code>date</code>."],
+    ],
+    body: CREATE_BODY,
+    responses: `<h4>Response <code>200</code></h4>
+<p>The full <a href="#payin">payment order object</a>, with <code>status = "pending"</code>.</p>
+<h4>Response <code>400</code> — validation error</h4>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "type": "invalid_request_error",
+    "message": {
+      "amount": "must be at least 5 VES"
+    }
+  }
+}</code></pre>
+<h4>Response <code>409</code> — duplicate order</h4>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "type": "invalid_request_error",
+    "message": {
+      "order": "already exists"
+    }
+  }
+}</code></pre>`,
+    tryit: { bodyEditor: true },
+  },
+  {
+    id: "payment-list",
+    method: "GET",
+    path: "/v1.0/payment",
+    title: "List payment orders",
+    desc: `Returns the payment orders of your account as an array of
+<a href="#payin">payment order objects</a>, newest first.
+<p>For large volumes use <strong>keyset pagination</strong>: read the <code>X-Next-Cursor</code>
+response header and pass it back as <code>after_id</code> to fetch the next page. It is faster and
+stabler than <code>page</code> for deep listings.</p>`,
+    fieldsTitle: "Query parameters",
+    fields: [
+      ["start_date", "date", false, "Filter start, format <code>YYYY-MM-DD</code>. Must not be in the future.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["end_date", "date", false, "Filter end, format <code>YYYY-MM-DD</code>. Must not be in the future. The range <code>start_date…end_date</code> may span at most <strong>92 days</strong>.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["per_page", "integer", false, "Records per page: 10 – 5000. Default 5000.", "^\\d+$"],
+      ["page", "integer", false, "Classic page number (offset pagination).", "^[1-9]\\d*$"],
+      ["after_id", "integer", false, "Keyset cursor: return records older than this id. Use the value of the <code>X-Next-Cursor</code> header from the previous page.", "^[1-9]\\d*$"],
+    ],
+    responses: `<h4>Response <code>200</code></h4>
+<p>JSON array of payment order objects. Response headers:</p>
+<table>
+  <tr><th>Header</th><th>Meaning</th></tr>
+  <tr><td><code>X-Next-Cursor</code></td><td>Cursor for the next page — pass it as <code>after_id</code>.</td></tr>
+  <tr><td><code>X-Total</code></td><td>Total records for the filter (sent on the first page).</td></tr>
+</table>`,
+    query: [
+      ["start_date", "2026-07-01"],
+      ["end_date", "2026-07-17"],
+      ["per_page", "50"],
+      ["after_id", ""],
+    ],
+    tryit: { query: true },
+  },
+  {
+    id: "payment-get",
+    method: "GET",
+    path: "/v1.0/payment/{token}",
+    title: "Get a payment order by token",
+    desc: `Retrieves one payment order using the <code>token</code> returned by
+<a href="#payment-create">Create</a>.`,
+    fieldsTitle: "Path parameters",
+    fields: [
+      ["token", "string", true, "The payment order token (e.g. <code>op_000000000000…</code>).", "^op_[a-f0-9]{32}$"],
+    ],
+    responses: `<h4>Response <code>200</code></h4>
+<p>The <a href="#payin">payment order object</a>.</p>
+<h4>Response <code>404</code></h4>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "message": "not found"
+  }
+}</code></pre>`,
+    pathParams: [["token", "op_00000000000000000000000000000000"]],
+    tryit: { path: true },
+  },
+  {
+    id: "payment-get-order",
+    method: "GET",
+    path: "/v1.0/payment/order/{order}",
+    title: "Get a payment order by your order id",
+    desc: `Retrieves one payment order using <strong>your own</strong> <code>order</code> identifier
+(the one you sent on <a href="#payment-create">Create</a>) instead of the Granve token.`,
+    fieldsTitle: "Path parameters",
+    fields: [
+      ["order", "string", true, "Your order identifier (e.g. <code>ORDER0001</code>).", "^[a-zA-Z0-9]+$"],
+    ],
+    responses: `<h4>Response <code>200</code></h4>
+<p>The <a href="#payin">payment order object</a>.</p>
+<h4>Response <code>404</code></h4>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "message": "not found"
+  }
+}</code></pre>`,
+    pathParams: [["order", "ORDER0001"]],
+    tryit: { path: true },
+  },
+  {
+    id: "payout-create",
+    method: "POST",
+    path: "/v1.0/payout",
+    title: "Create a payout",
+    desc: `Creates a payout to a beneficiary and debits your wallet (amount + fee). Returns the
+<a href="#payout">payout object</a>; store its <code>id</code> to query the state later.
+<p>The destination is defined by <code>bank.num</code>: an <strong>11-digit mobile number</strong>
+selects Pago Móvil (then <code>bank.code</code> is required), a <strong>20-digit account
+number</strong> selects bank transfer (then <code>bank.type</code> is required and the bank is taken
+from the account's first 4 digits).</p>`,
+    fieldsTitle: "Body parameters",
+    fields: [
+      ["email", "string", true, "Beneficiary's email, up to 100 characters.", "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"],
+      ["phone", "string", true, "Beneficiary's phone, 11 digits (prefixes 0412, 0414, 0416, 0422, 0424, 0426).", "^(0412|0414|0416|0422|0424|0426)\\d{7}$"],
+      ["order", "string", true, "Your unique payout identifier — letters, numbers and hyphens, up to 99 characters. Reusing a value returns <code>409</code>.", "^[a-zA-Z0-9-]{1,99}$"],
+      ["subject", "string", true, "Concept of the payout, 5–200 characters.", "^[a-zA-Z0-9 ]{5,200}$"],
+      ["amount", "integer", true, "Amount in VES, <strong>whole numbers only</strong> (no decimals), minimum 1.", "^[1-9]\\d*$"],
+      ["bank.name", "string", true, "Beneficiary's name, 3–50 characters.", "^[a-zA-Z0-9 ]{3,50}$"],
+      ["bank.document", "string", true, "Identity document: type letter (V, E, J) + 7–10 digits (e.g. <code>V00000000</code>).", "^[VEJ]\\d{7,10}$"],
+      ["bank.num", "string", true, "11-digit mobile number (Pago Móvil) or 20-digit account number (transfer).", "^((0412|0414|0416|0422|0424|0426)\\d{7}|\\d{20})$"],
+      ["bank.code", "string", false, "Bank code — <strong>required for Pago Móvil</strong> (11-digit num). One of: 0102, 0104, 0105, 0108, 0114, 0115, 0128, 0134, 0137, 0138, 0146, 0151, 0156, 0157, 0163, 0166, 0168, 0169, 0171, 0172, 0173, 0174, 0175, 0178, 0191.", "^\\d{4}$"],
+      ["bank.type", "string", false, "Account type — <strong>required for transfers</strong> (20-digit num): <code>A</code> (savings) or <code>C</code> (checking).", "^[AC]$"],
+      ["urlnotify", "string", false, "Callback URL notified when the payout is processed (see <a href=\"#webhooks\">PayOut notification</a>). Up to 255 characters.", "^https?://.+$"],
+      ["additional_parameters", "object", false, "Free key/value object stored with the payout."],
+    ],
+    body: {
+      email: "user@example.com",
+      phone: "04120000000",
+      order: "PO-0001",
+      subject: "Lorem ipsum payout",
+      amount: 100,
+      bank: {
+        name: "Lorem Ipsum",
+        document: "V00000000",
+        num: "04120000000",
+        code: "0102",
+      },
+      urlnotify: "https://example.com/notify",
+    },
+    responses: `<h4>Response <code>200</code></h4>
+<p>The <a href="#payout">payout object</a>, with <code>status = "register"</code>.</p>
+<h4>Response <code>400</code> — validation / insufficient balance</h4>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "type": "invalid_request_error",
+    "message": {
+      "bank_num": "must be 11 or 20 characters"
+    }
+  }
+}</code></pre>
+<h4>Response <code>409</code> — duplicate order</h4>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "type": "invalid_request_error",
+    "message": {
+      "order": "already exists"
+    }
+  }
+}</code></pre>`,
+    tryit: { bodyEditor: true },
+  },
+  {
+    id: "payout-list",
+    method: "GET",
+    path: "/v1.0/payout",
+    title: "List payouts",
+    desc: `Returns the payouts of your account as an array of <a href="#payout">payout objects</a>,
+newest first.
+<p><strong>Without dates the range defaults to today only</strong> — a bare
+<code>GET /v1.0/payout</code> returns <code>404</code> if there were no payouts today. For history,
+pass <code>start_date</code>/<code>end_date</code>; for deep listings use keyset pagination with
+<code>after_id</code> + the <code>X-Next-Cursor</code> header, exactly like
+<a href="#payment-list">PayIn List</a>.</p>`,
+    fieldsTitle: "Query parameters",
+    fields: [
+      ["start_date", "date", false, "Filter start (<code>YYYY-MM-DD</code>). Must not be in the future.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["end_date", "date", false, "Filter end (<code>YYYY-MM-DD</code>). Range limited to 92 days.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["per_page", "integer", false, "Records per page: 10 – 5000. Default 5000.", "^\\d+$"],
+      ["page", "integer", false, "Classic page number (offset pagination).", "^[1-9]\\d*$"],
+      ["after_id", "integer", false, "Keyset cursor from the previous page's <code>X-Next-Cursor</code> header.", "^[1-9]\\d*$"],
+    ],
+    responses: `<h4>Response <code>200</code></h4>
+<p>JSON array of payout objects. Headers <code>X-Next-Cursor</code> (next page cursor) and
+<code>X-Total</code> (first page only).</p>
+<h4>Response <code>404</code></h4>
+<p>No payouts in the requested range.</p>`,
+    query: [
+      ["start_date", "2026-07-01"],
+      ["end_date", "2026-07-17"],
+      ["per_page", "50"],
+      ["after_id", ""],
+    ],
+    tryit: { query: true },
+  },
+  {
+    id: "payout-get",
+    method: "GET",
+    path: "/v1.0/payout/{id}",
+    title: "Get a payout by id",
+    desc: `Retrieves one payout using the <code>id</code> returned by
+<a href="#payout-create">Create</a>. Lookups cover the last <strong>180 days</strong>.`,
+    fieldsTitle: "Path parameters",
+    fields: [
+      ["id", "string", true, "The payout id from the create response.", "^\\d+$"],
+    ],
+    responses: `<h4>Response <code>200</code></h4>
+<p>The <a href="#payout">payout object</a>.</p>
+<h4>Response <code>404</code></h4>
+<p>Unknown id, or the payout is older than 180 days.</p>`,
+    pathParams: [["id", "1000000000000001"]],
+    tryit: { path: true },
+  },
+  {
+    id: "payout-get-order",
+    method: "GET",
+    path: "/v1.0/payout/order/{order}",
+    title: "Get a payout by your order id",
+    desc: `Retrieves the most recent payout matching <strong>your own</strong> <code>order</code>
+identifier. Lookups cover the last <strong>180 days</strong>.`,
+    fieldsTitle: "Path parameters",
+    fields: [
+      ["order", "string", true, "Your payout identifier (the one you sent on Create).", "^[a-zA-Z0-9-]{1,99}$"],
+    ],
+    responses: `<h4>Response <code>200</code></h4>
+<p>The <a href="#payout">payout object</a>.</p>
+<h4>Response <code>404</code></h4>
+<p>No payout with that order in the last 180 days.</p>`,
+    pathParams: [["order", "PO-0001"]],
+    tryit: { path: true },
+  },
+  {
+    id: "wallet-balance",
+    method: "GET",
+    path: "/v1.0/wallet/balance",
+    title: "Get your balance",
+    desc: `Returns your current wallet balance (VES).`,
+    responses: `<h4>Response <code>200</code></h4>
+<pre><code>{
+  "balance": 900.00,
+  "currency": "VES"
+}</code></pre>
+<h4>Response <code>404</code></h4>
+<p>No wallet is provisioned yet for the account.</p>`,
+    tryit: {},
+  },
+  {
+    id: "wallet-list",
+    method: "GET",
+    path: "/v1.0/wallet",
+    title: "List wallet movements",
+    desc: `Returns the wallet movements of your account as an array of
+<a href="#wallet">movement objects</a>. <strong>Without dates the range defaults to today
+only</strong> — pass <code>start_date</code>/<code>end_date</code> for history.`,
+    fieldsTitle: "Query parameters",
+    fields: [
+      ["start_date", "date", false, "Filter start (<code>YYYY-MM-DD</code>). Default: today.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["end_date", "date", false, "Filter end (<code>YYYY-MM-DD</code>). Default: today.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["per_page", "integer", false, "Records per page: 10 – 5000. Default 5000.", "^\\d+$"],
+      ["page", "integer", false, "Page number, starting at 1.", "^[1-9]\\d*$"],
+      ["order", "string", false, "Sort by movement id: <code>ASC</code> or <code>DESC</code> (default).", "^(ASC|DESC)$"],
+    ],
+    responses: `<h4>Response <code>200</code></h4>
+<p>JSON array of movement objects. Headers <code>X-Page</code>, <code>X-Per-Page</code> and
+<code>X-Total</code>.</p>
+<h4>Response <code>404</code></h4>
+<p>No movements in the requested range.</p>`,
+    query: [
+      ["start_date", "2026-07-01"],
+      ["end_date", "2026-07-17"],
+      ["per_page", "50"],
+      ["order", "DESC"],
+    ],
+    tryit: { query: true },
+  },
+  {
+    id: "wallet-get",
+    method: "GET",
+    path: "/v1.0/wallet/{id}",
+    title: "Get a movement by id",
+    desc: `Retrieves one wallet movement by its <code>id</code>.`,
+    fieldsTitle: "Path parameters",
+    fields: [
+      ["id", "string", true, "The movement id (as returned in list responses).", "^\\d+$"],
+    ],
+    responses: `<h4>Response <code>200</code></h4>
+<p>The <a href="#wallet">movement object</a>.</p>
+<h4>Response <code>404</code></h4>
+<p>Unknown movement id.</p>`,
+    pathParams: [["id", "1000000000000002"]],
+    tryit: { path: true },
+  },
+];
+
+/* ----------------------------------------------------------- rendering */
+function tabsHtml(id) {
+  return `<div class="tabs" data-for="${id}">` +
+    LANGS.map((l, i) => `<button class="${i === 0 ? "active" : ""}" data-lang="${l}">${l}</button>`).join("") +
+    `</div>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre><code id="code-${id}"></code></pre></div>`;
+}
+
+function endpointCtx(ep) {
+  const base = baseUrl() || "https://sandbox-api.granve.com";
+  let path = ep.path;
+  (ep.pathParams || []).forEach(([k, v]) => { path = path.replace("{" + k + "}", v); });
+  if (ep.query) {
+    const qs = ep.query.filter(([, v]) => v).map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
+    if (qs) path += "?" + qs;
+  }
+  return { method: ep.method, base, path, body: ep.body || null };
+}
+
+function renderSample(id, ctx) {
+  const tabs = document.querySelector(`.tabs[data-for="${id}"]`);
+  if (!tabs) return;
+  const active = tabs.querySelector("button.active").dataset.lang;
+  $("#code-" + id).textContent = GEN[active](ctx);
+}
+
+function renderAllSamples() {
+  ENDPOINTS.forEach(ep => renderSample(ep.id, endpointCtx(ep)));
+  renderSample("auth", {
+    method: "GET",
+    base: baseUrl() || "https://sandbox-api.granve.com",
+    path: "/v1.0/payment/op_00000000000000000000000000000000",
+    body: null,
+  });
+}
+
+function fieldsTable(ep) {
+  if (!ep.fields) return "";
+  const rows = ep.fields.map(([name, type, req, desc, rx]) =>
+    `<tr><td><code>${name}</code><br><span class="${req ? "req" : "opt"}">${req ? "required" : "optional"}</span></td>` +
+    `<td>${type}</td><td>${rx ? `<code>${esc(rx)}</code>` : "—"}</td><td>${desc}</td></tr>`).join("");
+  return `<h4>${ep.fieldsTitle}</h4>
+  <table><tr><th>Field</th><th>Type</th><th>Format (regex)</th><th>Description</th></tr>${rows}</table>`;
+}
+
+function tryitHtml(ep) {
+  let inner = "";
+  if (ep.tryit.path) {
+    inner += `<div class="fields">` + ep.pathParams.map(([k, v]) =>
+      `<div class="f"><label>${k}</label><input class="mono" data-ppar="${k}" value="${esc(v)}" aria-label="${k}"></div>`).join("") + `</div>`;
+  }
+  if (ep.tryit.query) {
+    inner += `<div class="fields">` + ep.query.map(([k, v]) =>
+      `<div class="f"><label>${k}</label><input class="mono" data-qpar="${k}" value="${esc(v)}" aria-label="${k}"></div>`).join("") + `</div>`;
+  }
+  if (ep.tryit.bodyEditor) {
+    inner += `<label style="font-size:12px;font-weight:600;color:var(--fg2)">Request body (JSON)</label>
+    <textarea class="body-editor" aria-label="Request body (JSON)">${esc(JSON.stringify(ep.body, null, 2))}</textarea>`;
+  }
+  return `<div class="tryit" data-ep="${ep.id}">
+    <h4>Run this request</h4>
+    ${inner}
+    <button class="run-btn">Run ▸</button>
+    <div class="result"><div class="status"></div><div class="rheaders"></div><pre><code></code></pre></div>
+  </div>`;
+}
+
+function renderEndpoint(ep) {
+  const el = document.getElementById(ep.id);
+  el.innerHTML = `
+    <h3 style="margin-top:40px">${ep.title}</h3>
+    <div class="endpoint-head">
+      <span class="badge ${ep.method.toLowerCase()}">${ep.method}</span>
+      <span class="path">${ep.path}</span>
+    </div>
+    <div class="split">
+      <div class="doc">
+        <div>${ep.desc}</div>
+        ${fieldsTable(ep)}
+        ${ep.responses}
+      </div>
+      <div class="codecol">
+        <h4>Request example</h4>
+        ${tabsHtml(ep.id)}
+        ${tryitHtml(ep)}
+      </div>
+    </div>
+  `;
+}
+
+ENDPOINTS.forEach(renderEndpoint);
+$("#auth-samples").innerHTML = tabsHtml("auth");
+renderAllSamples();
+
+// los <pre> scrollean horizontalmente: deben ser enfocables por teclado (a11y)
+document.querySelectorAll("pre, table").forEach(el => el.setAttribute("tabindex", "0"));
+
+/* tab switching + copy */
+document.addEventListener("click", e => {
+  const tab = e.target.closest(".tabs button");
+  if (tab) {
+    const tabs = tab.parentElement;
+    tabs.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+    tab.classList.add("active");
+    renderAllSamples();
+    return;
+  }
+  const copy = e.target.closest(".copy-btn");
+  if (copy) {
+    const code = copy.parentElement.querySelector("code");
+    navigator.clipboard.writeText(code.textContent).then(() => {
+      copy.textContent = "Copied ✓";
+      setTimeout(() => { copy.textContent = "Copy"; }, 1200);
+    });
+  }
+});
+
+/* ----------------------------------------------------------- run panel */
+document.addEventListener("click", async e => {
+  const btn = e.target.closest(".run-btn");
+  if (!btn) return;
+  const wrap = btn.closest(".tryit");
+  if (!wrap) return; // botones con estilo .run-btn fuera de un panel try-it (p.ej. "Load")
+  const ep = ENDPOINTS.find(x => x.id === wrap.dataset.ep);
+  const result = $(".result", wrap);
+  const statusEl = $(".status", result);
+  const headersEl = $(".rheaders", result);
+  const bodyEl = $("pre code", result);
+
+  const pub = $("#c-pub").value.trim();
+  result.style.display = "block";
+  headersEl.textContent = "";
+  bodyEl.textContent = "";
+
+  if (!pub || !privKey) {
+    statusEl.className = "status err";
+    statusEl.textContent = "Enter your public token and load your private key in the API console section first.";
+    return;
+  }
+  if (baseUrl() === "https://api.granve.com" && !$("#c-prod-ok").checked) {
+    statusEl.className = "status err";
+    statusEl.textContent = "Runs against Production are disabled by default. Tick “Allow runs against Production” in the API console to enable them.";
+    return;
+  }
+  if (!window.crypto || !window.crypto.subtle) {
+    statusEl.className = "status err";
+    statusEl.textContent = "Signatures unavailable: open this page over https (or localhost).";
+    return;
+  }
+
+  // Build URL from the try-it inputs.
+  let path = ep.path;
+  wrap.querySelectorAll("[data-ppar]").forEach(i => {
+    path = path.replace("{" + i.dataset.ppar + "}", encodeURIComponent(i.value.trim()));
+  });
+  let url = baseUrl() + path;
+  const q = [...wrap.querySelectorAll("[data-qpar]")]
+    .filter(i => i.value.trim() !== "")
+    .map(i => i.dataset.qpar + "=" + encodeURIComponent(i.value.trim()));
+  if (q.length) url += "?" + q.join("&");
+
+  let body = null;
+  const editor = $(".body-editor", wrap);
+  if (editor) {
+    try {
+      body = JSON.stringify(JSON.parse(editor.value));
+    } catch (err) {
+      statusEl.className = "status err";
+      statusEl.textContent = "Request body is not valid JSON: " + err.message;
+      return;
+    }
+  }
+
+  btn.disabled = true;
+  statusEl.className = "status";
+  statusEl.textContent = "Running…";
+  const t0 = performance.now();
+  try {
+    const date = cleanIsoNow();
+    const sign = await signWithPrivateKey(date);
+    const headers = { "Authorization": "Bearer " + pub, "X-Date": date, "X-Sign": sign };
+    if (body) headers["Content-Type"] = "application/json";
+    const res = await fetch(url, { method: ep.method, headers, body, mode: "cors" });
+    const ms = Math.round(performance.now() - t0);
+    statusEl.className = "status " + (res.ok ? "ok" : "err");
+    statusEl.textContent = `${res.status} ${res.statusText || ""} · ${ms} ms · ${ep.method} ${url}`;
+    const interesting = ["x-next-cursor", "x-total", "content-type"]
+      .map(h => res.headers.get(h) ? `${h}: ${res.headers.get(h)}` : null)
+      .filter(Boolean);
+    headersEl.textContent = interesting.join("   ");
+    const text = await res.text();
+    try { bodyEl.textContent = JSON.stringify(JSON.parse(text), null, 2); }
+    catch { bodyEl.textContent = text || "(empty body)"; }
+  } catch (err) {
+    statusEl.className = "status err";
+    statusEl.textContent = "Network error: " + err.message;
+    bodyEl.textContent = "The request never reached the API or the response was blocked.\n\n" +
+      "Most common cause: this page's origin is not allowed by the API's CORS configuration\n" +
+      "(CORS_ALLOWED_ORIGINS). Also check the base URL and your network connection.";
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
