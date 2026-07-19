@@ -302,7 +302,7 @@ and standard HTTP status codes. All responses are JSON, including errors.</p>
 <table>
   <tr><th>Environment</th><th>Base URL</th></tr>
   <tr><td>Production</td><td><code>https://api.granve.com</code></td></tr>
-  <tr><td>Sandbox</td><td><code>https://sandbox-api.granve.com</code></td></tr>
+  <tr><td>Sandbox</td><td><code>https://api-sandbox.granve.com</code></td></tr>
 </table>
 <p>The Production endpoint creates real transactions. The Sandbox endpoint lets you test your
 integration without affecting real data.</p>
@@ -416,9 +416,12 @@ sends <code>POST</code> with JSON body <code>{"token": "&lt;payout id&gt;"}</cod
 query <a href="#payout-get"><code>GET /v1.0/payout/{id}</code></a> to read the final state.</p>
 
 <h2 id="testing">Testing (sandbox)</h2>
-<p>Use your <strong>sandbox keys</strong> against <code>https://sandbox-api.granve.com</code>. The
-sandbox mirrors the production API contract; bank confirmations are simulated, so no real money
-moves.</p>
+<p>The sandbox at <code>https://api-sandbox.granve.com</code> is a fully isolated environment —
+<strong>your same credentials work on both environments</strong>; only the base URL changes.
+Everything you create in sandbox lives in a separate database and never touches real money.</p>
+<div class="note"><strong>Bank confirmation simulation is being enabled.</strong> Today the full
+create/query API surface works in sandbox; simulated payment confirmations (magic test references)
+are coming soon — until then, sandbox orders stay <code>pending</code> until they expire.</div>
 <ul>
   <li><strong>Full PayIn flow:</strong> create an order, open the returned <code>redirect_url</code>
   in a browser to see the hosted payment page, then query the order by token or by your own
@@ -430,7 +433,7 @@ moves.</p>
   <li><strong>Signature errors:</strong> send a stale <code>X-Date</code> (&gt;5 min old) to see the
   <code>DATE_INVALID</code> response.</li>
 </ul>
-<p>The <a href="#console-anchor">API console</a> below targets sandbox by default.</p>
+<p>The <a href="#console-anchor">API console</a> below targets <strong>Sandbox</strong> by default; runs against Production stay behind an explicit checkbox.</p>
 
 <h2 id="console-anchor">API console — try it live</h2>
 <div id="console">
@@ -439,7 +442,7 @@ moves.</p>
     <div class="col">
       <label for="c-env">Environment</label>
       <select id="c-env">
-        <option value="https://sandbox-api.granve.com">Sandbox — sandbox-api.granve.com</option>
+        <option value="https://api-sandbox.granve.com">Sandbox — api-sandbox.granve.com</option>
         <option value="https://api.granve.com">Production — api.granve.com</option>
         <option value="custom">Custom…</option>
       </select>
@@ -680,6 +683,13 @@ it). <code>balance</code> is the wallet balance right after this movement.</p>
 const $ = (s, el) => (el || document).querySelector(s);
 const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+/* Escapa el texto y convierte cada URL http(s) en link clickeable (seguro: esc primero,
+   el patrón exige prefijo https?:// así que no admite javascript: u otros esquemas). */
+function linkify(text) {
+  return esc(text).replace(/https?:\/\/[^\s"]+/g,
+    m => `<a href="${m}" target="_blank" rel="noopener noreferrer">${m}</a>`);
+}
+
 function cleanIsoNow() {
   return new Date().toISOString().replace(/\.\d+Z$/, "Z");
 }
@@ -774,6 +784,8 @@ function baseUrl() {
 }
 (function initConsole() {
   const c = loadCreds();
+  // host sandbox antiguo (pre-rename) → al actual
+  if (c.env === "https://sandbox-api.granve.com") c.env = "https://api-sandbox.granve.com";
   if (c.env) $("#c-env").value = c.env;
   if (c.custom) $("#c-custom").value = c.custom;
   if (c.pub) $("#c-pub").value = c.pub;
@@ -1440,7 +1452,7 @@ function tabsHtml(id) {
 }
 
 function endpointCtx(ep) {
-  const base = baseUrl() || "https://sandbox-api.granve.com";
+  const base = baseUrl() || "https://api-sandbox.granve.com";
   let path = ep.path;
   (ep.pathParams || []).forEach(([k, v]) => { path = path.replace("{" + k + "}", v); });
   if (ep.query) {
@@ -1461,7 +1473,7 @@ function renderAllSamples() {
   ENDPOINTS.forEach(ep => renderSample(ep.id, endpointCtx(ep)));
   renderSample("auth", {
     method: "GET",
-    base: baseUrl() || "https://sandbox-api.granve.com",
+    base: baseUrl() || "https://api-sandbox.granve.com",
     path: "/v1.0/payment/op_00000000000000000000000000000000",
     body: null,
   });
@@ -1527,6 +1539,11 @@ renderAllSamples();
 
 // los <pre> scrollean horizontalmente: deben ser enfocables por teclado (a11y)
 document.querySelectorAll("pre, table").forEach(el => el.setAttribute("tabindex", "0"));
+
+// URLs clickeables en los ejemplos estáticos (los samples de código con id se re-renderizan aparte)
+document.querySelectorAll("#content pre > code:not([id])").forEach(el => {
+  if (/https?:\/\//.test(el.textContent)) el.innerHTML = linkify(el.textContent);
+});
 
 /* tab switching + copy */
 document.addEventListener("click", e => {
@@ -1622,7 +1639,7 @@ document.addEventListener("click", async e => {
       .filter(Boolean);
     headersEl.textContent = interesting.join("   ");
     const text = await res.text();
-    try { bodyEl.textContent = JSON.stringify(JSON.parse(text), null, 2); }
+    try { bodyEl.innerHTML = linkify(JSON.stringify(JSON.parse(text), null, 2)); }
     catch { bodyEl.textContent = text || "(empty body)"; }
   } catch (err) {
     statusEl.className = "status err";
