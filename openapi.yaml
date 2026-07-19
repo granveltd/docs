@@ -2,7 +2,7 @@ openapi: 3.0.3
 servers:
   - url: "https://api.granve.com"
     description: Production
-  - url: "https://sandbox-api.granve.com"
+  - url: "https://api-sandbox.granve.com"
     description: Sandbox
 info:
   title: Granve API
@@ -23,7 +23,7 @@ info:
     | Environment  | Base URL                          |
     |--------------|-----------------------------------|
     | Production   | https://api.granve.com            |
-    | Sandbox      | https://sandbox-api.granve.com    |
+    | Sandbox      | https://api-sandbox.granve.com    |
 
     ## Authentication
 
@@ -65,8 +65,10 @@ info:
 
     ## Testing
 
-    Use your sandbox keys against `https://sandbox-api.granve.com` — same contract,
-    simulated bank confirmations, no real money.
+    The sandbox at `https://api-sandbox.granve.com` is a fully isolated environment:
+    your same credentials work on both environments — only the base URL changes.
+    Nothing in sandbox touches real money. Simulated bank confirmations (magic test
+    references) are coming soon; until then sandbox orders stay pending until expiry.
 
 tags:
   - name: Payment (PayIn)
