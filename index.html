@@ -233,6 +233,7 @@
   </div>
   <nav id="nav">
     <a href="#introduction" data-kw="welcome overview introduction status codes json rest">Introduction</a>
+    <a href="#quickstart" data-kw="quickstart getting started first payment integration guide tutorial steps go live checklist">Quickstart</a>
     <a href="#endpoints" data-kw="base url endpoint production sandbox environment host">Endpoint</a>
     <a href="#authentication" data-kw="authentication auth headers authorization bearer x-sign x-date sign date hmac sha256 signature token">Authentication</a>
     <div class="navgroup collapsed">
@@ -296,6 +297,46 @@ and standard HTTP status codes. All responses are JSON, including errors.</p>
   <tr><td><code>409</code></td><td>Conflict — the <code>order</code> identifier already exists for your account.</td></tr>
   <tr><td><code>500</code></td><td>Internal server error.</td></tr>
 </table>
+
+<h2 id="quickstart">Quickstart</h2>
+<p>Every integration follows the same path: build and test everything against
+<strong>Sandbox</strong>, then switch a single base URL to go live. Your credentials are the same
+in both environments.</p>
+
+<pre>Your server ──POST /v1.0/payment──▶ Granve ──▶ token + redirect_url
+Your site  ──redirect customer───▶ hosted payment page ──▶ customer pays
+Granve     ──webhook + return────▶ your server confirms the order</pre>
+
+<ol>
+  <li><strong>Get your credentials.</strong> Your Granve account gives you a public token
+  (<code>Authorization</code> header) and a private token (signing key). One pair works on both
+  environments — <em>keep the private token server-side, always</em>.</li>
+  <li><strong>Point to Sandbox.</strong> Use <code>https://api-sandbox.granve.com</code> as base URL.
+  Nothing you do there touches real money (see <a href="#testing">Testing</a>).</li>
+  <li><strong>Sign a request.</strong> Send the three headers described in
+  <a href="#authentication">Authentication</a>: <code>Authorization</code>, <code>X-Date</code> and
+  <code>X-Sign</code> (HMAC-SHA256 of the date, keyed with your private token).</li>
+  <li><strong>Create your first payment order.</strong> <code>POST /v1.0/payment</code> with
+  <code>payment</code>, <code>amount</code>, <code>order</code> and <code>email</code> — or run it
+  right now from the <a href="#console-anchor">API console</a>. The response contains the
+  <code>token</code> (your permanent handle for the transaction) and the <code>redirect_url</code>.</li>
+  <li><strong>Redirect your customer.</strong> Send the customer to <code>redirect_url</code> — the
+  hosted payment page collects the bank reference and validates the payment. In sandbox, type a
+  reference ending in <code>00</code> to simulate a successful payment.</li>
+  <li><strong>Confirm the result.</strong> When the order reaches a terminal state Granve calls your
+  registered webhook URL and sends the customer back to your return URL (see
+  <a href="#webhooks">Webhooks &amp; return URL</a>). You can also query the order at any time by
+  <code>token</code> or by your own <code>order</code> id — never trust the browser redirect alone.</li>
+  <li><strong>Go live.</strong> Change the base URL to <code>https://api.granve.com</code>. Same
+  credentials, same code. Before your first real charge, check that:
+  <ul>
+    <li>your <strong>production</strong> webhook and return URLs are registered for your account
+    (they are configured per environment, so sandbox tests never hit your production endpoints);</li>
+    <li>responses show <code>"livemode": true</code> — if you see <code>false</code>, you are still
+    pointing at sandbox;</li>
+    <li>your webhook handler confirms orders by querying the API, not by reading the redirect.</li>
+  </ul></li>
+</ol>
 
 <h2 id="endpoints">Endpoint</h2>
 <p>If you have a Granve account, you can access the REST API through the following base URLs:</p>
