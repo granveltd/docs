@@ -276,7 +276,7 @@
     <a href="#console-anchor" data-kw="console try it run live credentials tokens execute">API console (try it)</a>
     <span class="nav-label">Reference</span>
     <a href="#errors" data-kw="errors validation invalid_request_error api_error date_invalid 400 401 404 409 failed">Errors</a>
-    <a href="#webhooks" data-kw="webhooks notification callback return url redirect urlnotify terminal retry">Webhooks &amp; return URL</a>
+    <a href="#webhooks" data-kw="webhooks notification callback return url redirect terminal retry">Webhooks &amp; return URL</a>
     <div class="navgroup collapsed">
       <button class="group-toggle" aria-expanded="false" type="button">Payment (PayIn) <span class="chev">▾</span></button>
       <div class="group-items">
@@ -665,8 +665,6 @@ Content-Type: application/json
   authenticated GET (<a href="#payment-get">payment</a> / <a href="#payout-get">payout</a>), and
   poll that same endpoint whenever an expected notification is missing.</li>
 </ul>
-<p class="hint">Legacy: accounts without a registered webhook URL fall back, for payouts only, to
-the deprecated per-request <code>urlnotify</code> field.</p>
 
 <h3>Payer return (browser redirect)</h3>
 <p>After finishing (or abandoning) the hosted payment page, the payer's browser is redirected to
@@ -758,8 +756,8 @@ payout is accepted.</p>
 <div class="doc">
 <h3 style="margin-top:0">The payout object</h3>
 <p><code>wallet.payout</code> and <code>wallet.payout_tax</code> are the two wallet movements the
-payout generated (amount and fee). The field name <code>methoad</code> (<em>sic</em>) is kept for
-backward compatibility; its values are <code>mobile</code> or <code>transfer</code>.</p>
+payout generated (amount and fee). <code>bank.method</code> is <code>mobile</code> or
+<code>transfer</code>.</p>
 <p><code>status</code> is one of:</p>
 <table>
   <tr><th>Status</th><th>Meaning</th></tr>
@@ -789,9 +787,8 @@ backward compatibility; its values are <code>mobile</code> or <code>transfer</co
       "code": "0102",
       "type": null,
       "num": "04120000000",
-      "methoad": "mobile"
-    },
-    "urlnotify": "https://example.com/notify"
+      "method": "mobile"
+    }
   },
   "wallet": {
     "payout": {
@@ -859,6 +856,9 @@ it). <code>balance</code> is the wallet balance right after this movement.</p>
 <h2 id="changelog">Changelog</h2>
 <table>
   <tr><th>Version</th><th>Date</th><th>Changes</th></tr>
+  <tr><td><code>1.2.0</code></td><td>2026-07</td><td>New <strong>Tools</strong> endpoints:
+  <code>GET /v1.0/payment-methods</code> and <code>GET /v1.0/banks</code> — the discoverable
+  catalogs behind the <code>payment</code> and <code>bank.code</code> fields.</td></tr>
   <tr><td><code>1.1.0</code></td><td>2026-07</td><td><code>id</code> is the identifier of
   every object: payment orders use <code>pi_…</code> and payouts <code>po_…</code>; the
   <code>token</code> response field was removed. All notifications share one payload contract
@@ -1465,7 +1465,6 @@ from the account's first 4 digits).</p>`,
       ["bank.num", "string", true, "11-digit mobile number (Pago Móvil) or 20-digit account number (transfer).", "^((0412|0414|0416|0422|0424|0426)\\d{7}|\\d{20})$"],
       ["bank.code", "string", false, "Bank code — <strong>required for Pago Móvil</strong> (11-digit num). Any code returned by <a href=\"#tools-banks\">GET /v1.0/banks</a>.", "^\\d{4}$"],
       ["bank.type", "string", false, "Account type — <strong>required for transfers</strong> (20-digit num): <code>A</code> (savings) or <code>C</code> (checking).", "^[AC]$"],
-      ["urlnotify", "string", false, "<strong>Deprecated.</strong> Notifications go to your registered webhook URL (see <a href=\"#webhooks\">PayOut notification</a>); this per-request URL is only used as fallback when your account has none registered. Up to 255 characters.", "^https?://.+$"],
       ["additional_parameters", "object", false, "Free key/value object stored with the payout."],
     ],
     body: {
@@ -1480,7 +1479,6 @@ from the account's first 4 digits).</p>`,
         num: "04120000000",
         code: "0102",
       },
-      urlnotify: "https://example.com/notify",
     },
     responses: `<h4>Response <code>200</code></h4>
 <p>The <a href="#payout">payout object</a>, with <code>status = "register"</code>.</p>
