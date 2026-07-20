@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Granve API — Documentation</title>
 <meta name="description" content="Granve REST API documentation — create payment orders, query transactions and test every endpoint live from your browser.">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https: http://localhost:* http://127.0.0.1:*; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.granve.com https://api-sandbox.granve.com; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230969da'/%3E%3Ctext x='32' y='45' font-size='38' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EG%3C/text%3E%3C/svg%3E">
 <style>
   :root {
@@ -13,6 +13,7 @@
     --bg: #ffffff; --bg2: #f6f8fa; --fg: #1f2328; --fg2: #59636e;
     --border: #d1d9e0; --accent: #0969da; --accent-fg: #ffffff; --btn-bg: #0550ae;
     --ok: #1a7f37; --err: #d1242f; --warn-bg: #fff8c5; --warn-border: #d4a72c;
+    --danger-bg: #ffebe9; --danger-border: #ffb1a8;
     --code-bg: #f6f8fa; --sidebar-w: 250px;
     --method-get: #1a7f37; --method-post: #9a6700;
   }
@@ -21,6 +22,7 @@
       --bg: #0d1117; --bg2: #151b23; --fg: #f0f6fc; --fg2: #9198a1;
       --border: #3d444d; --accent: #4493f8; --accent-fg: #ffffff; --btn-bg: #1f6feb;
       --ok: #3fb950; --err: #f85149; --warn-bg: #3a3000; --warn-border: #9e6a03;
+      --danger-bg: #2d1215; --danger-border: #6e2a30;
       --code-bg: #151b23;
     }
   }
@@ -122,6 +124,12 @@
     font-weight: 600; font-family: inherit; text-align: left;
   }
   .group-toggle:hover { color: var(--fg); }
+  .nav-label {
+    display: block; margin: 12px 0 2px; padding: 4px 18px;
+    font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--fg2); font-weight: 600;
+  }
+  #nav > a + .nav-label { margin-top: 18px; }
   .group-toggle .chev { transition: transform .15s ease; font-size: 12px; }
   .navgroup.collapsed .group-items { display: none; }
   .navgroup.collapsed .chev { transform: rotate(-90deg); }
@@ -142,6 +150,33 @@
   .req { color: var(--err); font-size: 12px; font-weight: 600; }
   .opt { color: var(--fg2); font-size: 12px; }
   .note { background: var(--warn-bg); border: 1px solid var(--warn-border); border-radius: 8px; padding: 10px 14px; margin: 14px 0; font-size: 14px; }
+  .danger { background: var(--danger-bg); border: 1px solid var(--danger-border); border-left: 4px solid var(--err); border-radius: 8px; padding: 12px 15px; margin: 14px 0; font-size: 14px; }
+  .danger > strong:first-child { color: var(--err); }
+  .danger ul { list-style: none; margin: 9px 0; padding: 0; }
+  .danger li { position: relative; padding-left: 24px; margin: 5px 0; }
+  .danger li::before { position: absolute; left: 3px; font-weight: 700; }
+  .danger li.no::before { content: "✗"; color: var(--err); }
+  .danger li.yes::before { content: "✓"; color: var(--ok); }
+  /* Quickstart */
+  .qs-flow { width: 100%; max-width: 680px; height: auto; display: block; margin: 20px auto 6px; }
+  .qs-flow .box { fill: var(--bg2); stroke: var(--border); }
+  .qs-flow .actor { fill: var(--fg); font: 600 12.5px system-ui, -apple-system, sans-serif; text-anchor: middle; }
+  .qs-flow .life { stroke: var(--border); stroke-dasharray: 4 4; }
+  .qs-flow .msg { stroke: var(--fg2); fill: none; }
+  .qs-flow .ret { stroke-dasharray: 5 4; }
+  .qs-flow .lbl { fill: var(--fg2); font: 11px system-ui, -apple-system, sans-serif; text-anchor: middle; }
+  .qs-steps { margin: 26px 0 8px; }
+  .qs-step { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 0 16px; position: relative; padding-bottom: 26px; }
+  .qs-step::before { content: ""; position: absolute; left: 16px; top: 38px; bottom: 4px; width: 2px; background: var(--border); border-radius: 2px; }
+  .qs-step:last-child { padding-bottom: 0; }
+  .qs-step:last-child::before { display: none; }
+  .qs-n { width: 33px; height: 33px; border-radius: 50%; background: var(--accent); color: var(--accent-fg); font-weight: 700; font-size: 15px; display: flex; align-items: center; justify-content: center; }
+  .qs-step h3 { margin: 5px 0 7px; font-size: 16.5px; }
+  .qs-step p { margin: 7px 0; }
+  .qs-step .note { margin: 10px 0 0; }
+  .qs-check { list-style: none; padding: 0; margin: 14px 0 6px; }
+  .qs-check li { position: relative; padding: 10px 14px 10px 40px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg2); margin-bottom: 8px; }
+  .qs-check li::before { content: "✓"; position: absolute; left: 14px; top: 9px; color: var(--accent); font-weight: 700; }
   .endpoint-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
   .badge { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 6px; color: var(--accent-fg); }
   .badge.post { background: var(--method-post); } .badge.get { background: var(--method-get); }
@@ -232,25 +267,22 @@
       spellcheck="false" autocapitalize="off" aria-label="Search endpoints">
   </div>
   <nav id="nav">
+    <span class="nav-label">Getting started</span>
     <a href="#introduction" data-kw="welcome overview introduction status codes json rest">Introduction</a>
     <a href="#quickstart" data-kw="quickstart getting started first payment integration guide tutorial steps go live checklist">Quickstart</a>
-    <a href="#endpoints" data-kw="base url endpoint production sandbox environment host">Endpoint</a>
+    <a href="#endpoints" data-kw="base url endpoint production sandbox environment host">Environments</a>
     <a href="#authentication" data-kw="authentication auth headers authorization bearer x-sign x-date sign date hmac sha256 signature token">Authentication</a>
-    <div class="navgroup collapsed">
-      <button class="group-toggle" aria-expanded="false" type="button">Guides <span class="chev">▾</span></button>
-      <div class="group-items">
-        <a href="#errors" data-kw="errors validation invalid_request_error api_error date_invalid 400 401 404 409 failed">Errors</a>
-        <a href="#webhooks" data-kw="webhooks notification callback return url redirect urlnotify terminal retry">Webhooks &amp; return URL</a>
-        <a href="#testing" data-kw="testing sandbox simulate test keys">Testing (sandbox)</a>
-        <a href="#console-anchor" data-kw="console try it run live credentials tokens execute">API console (try it)</a>
-      </div>
-    </div>
+    <a href="#testing" data-kw="testing sandbox simulate test keys magic references">Testing (sandbox)</a>
+    <a href="#console-anchor" data-kw="console try it run live credentials tokens execute">API console (try it)</a>
+    <span class="nav-label">Reference</span>
+    <a href="#errors" data-kw="errors validation invalid_request_error api_error date_invalid 400 401 404 409 failed">Errors</a>
+    <a href="#webhooks" data-kw="webhooks notification callback return url redirect urlnotify terminal retry">Webhooks &amp; return URL</a>
     <div class="navgroup collapsed">
       <button class="group-toggle" aria-expanded="false" type="button">Payment (PayIn) <span class="chev">▾</span></button>
       <div class="group-items">
         <a href="#payment-create" data-kw="payin post /v1.0/payment create payment order charge redirect_url amount"><span class="m post">POST</span>Create</a>
         <a href="#payment-list" data-kw="payin get /v1.0/payment list payments pagination after_id cursor start_date end_date"><span class="m get">GET</span>List</a>
-        <a href="#payment-get" data-kw="payin get /v1.0/payment/token query payment order by token status"><span class="m get">GET</span>Get by token</a>
+        <a href="#payment-get" data-kw="payin get /v1.0/payment/id token query payment order by id status"><span class="m get">GET</span>Get by id</a>
         <a href="#payment-get-order" data-kw="payin get /v1.0/payment/order query payment by order id"><span class="m get">GET</span>Get by order</a>
       </div>
     </div>
@@ -280,7 +312,7 @@
 <div id="content">
 
 <h1 id="introduction">Granve API</h1>
-<p class="sub">REST API for creating and managing payments — v1.0</p>
+<p class="sub">REST API for creating and managing payments — v1.0.2</p>
 
 <p>Welcome to the Granve API. It lets you create payment orders, redirect your customer to a hosted
 payment page, and query the state of every transaction of your account.</p>
@@ -299,46 +331,139 @@ and standard HTTP status codes. All responses are JSON, including errors.</p>
 </table>
 
 <h2 id="quickstart">Quickstart</h2>
-<p>Every integration follows the same path: build and test everything against
-<strong>Sandbox</strong>, then switch a single base URL to go live. Your credentials are the same
-in both environments.</p>
+<p class="sub">From zero to your first confirmed payment — no SDK required.</p>
 
-<pre>Your server ──POST /v1.0/payment──▶ Granve ──▶ token + redirect_url
-Your site  ──redirect customer───▶ hosted payment page ──▶ customer pays
-Granve     ──webhook + return────▶ your server confirms the order</pre>
+<div class="split">
+<div class="doc">
 
-<ol>
-  <li><strong>Get your credentials.</strong> Your Granve account gives you a public token
-  (<code>Authorization</code> header) and a private token (signing key). One pair works on both
-  environments — <em>keep the private token server-side, always</em>.</li>
-  <li><strong>Point to Sandbox.</strong> Use <code>https://api-sandbox.granve.com</code> as base URL.
-  Nothing you do there touches real money (see <a href="#testing">Testing</a>).</li>
-  <li><strong>Sign a request.</strong> Send the three headers described in
-  <a href="#authentication">Authentication</a>: <code>Authorization</code>, <code>X-Date</code> and
-  <code>X-Sign</code> (HMAC-SHA256 of the date, keyed with your private token).</li>
-  <li><strong>Create your first payment order.</strong> <code>POST /v1.0/payment</code> with
-  <code>payment</code>, <code>amount</code>, <code>order</code> and <code>email</code> — or run it
-  right now from the <a href="#console-anchor">API console</a>. The response contains the
-  <code>token</code> (your permanent handle for the transaction) and the <code>redirect_url</code>.</li>
-  <li><strong>Redirect your customer.</strong> Send the customer to <code>redirect_url</code> — the
-  hosted payment page collects the bank reference and validates the payment. In sandbox, type a
-  reference ending in <code>00</code> to simulate a successful payment.</li>
-  <li><strong>Confirm the result.</strong> When the order reaches a terminal state Granve calls your
-  registered webhook URL and sends the customer back to your return URL (see
-  <a href="#webhooks">Webhooks &amp; return URL</a>). You can also query the order at any time by
-  <code>token</code> or by your own <code>order</code> id — never trust the browser redirect alone.</li>
-  <li><strong>Go live.</strong> Change the base URL to <code>https://api.granve.com</code>. Same
-  credentials, same code. Before your first real charge, check that:
-  <ul>
-    <li>your <strong>production</strong> webhook and return URLs are registered for your account
-    (they are configured per environment, so sandbox tests never hit your production endpoints);</li>
-    <li>responses show <code>"livemode": true</code> — if you see <code>false</code>, you are still
-    pointing at sandbox;</li>
-    <li>your webhook handler confirms orders by querying the API, not by reading the redirect.</li>
-  </ul></li>
-</ol>
+<p>Every Granve integration follows the same path: build and test everything against
+<strong>Sandbox</strong>, then change one base URL to go live. Your credentials are identical in
+both environments, so the code you write on day one is the code that runs in production.</p>
 
-<h2 id="endpoints">Endpoint</h2>
+<svg class="qs-flow" viewBox="0 0 680 232" role="img"
+  aria-label="Payment flow: your server creates the order, the customer pays on the hosted payment page, Granve notifies your webhook">
+  <defs>
+    <marker id="qsarr" markerWidth="8" markerHeight="7" refX="7" refY="3.5" orient="auto">
+      <path d="M0,0 L8,3.5 L0,7 Z" fill="var(--fg2)"/>
+    </marker>
+  </defs>
+  <rect class="box" x="45"  y="6" width="130" height="30" rx="7"/>
+  <rect class="box" x="275" y="6" width="130" height="30" rx="7"/>
+  <rect class="box" x="505" y="6" width="130" height="30" rx="7"/>
+  <text class="actor" x="110" y="26">Your server</text>
+  <text class="actor" x="340" y="26">Granve API</text>
+  <text class="actor" x="570" y="26">Customer</text>
+  <line class="life" x1="110" y1="36" x2="110" y2="222"/>
+  <line class="life" x1="340" y1="36" x2="340" y2="222"/>
+  <line class="life" x1="570" y1="36" x2="570" y2="222"/>
+  <text class="lbl" x="225" y="62">POST /v1.0/payment</text>
+  <line class="msg" x1="110" y1="70" x2="334" y2="70" marker-end="url(#qsarr)"/>
+  <text class="lbl" x="225" y="96">token + redirect_url</text>
+  <line class="msg ret" x1="340" y1="104" x2="116" y2="104" marker-end="url(#qsarr)"/>
+  <text class="lbl" x="340" y="130">redirect to the payment page</text>
+  <line class="msg" x1="110" y1="138" x2="564" y2="138" marker-end="url(#qsarr)"/>
+  <text class="lbl" x="455" y="164">pays on the hosted page</text>
+  <line class="msg" x1="570" y1="172" x2="346" y2="172" marker-end="url(#qsarr)"/>
+  <text class="lbl" x="225" y="198">webhook — terminal status</text>
+  <line class="msg ret" x1="340" y1="206" x2="116" y2="206" marker-end="url(#qsarr)"/>
+</svg>
+
+<div class="qs-steps">
+  <div class="qs-step"><div class="qs-n">1</div><div class="qs-body">
+    <h3>Get your credentials</h3>
+    <p>Your account has two access keys: a <strong>public token</strong> (sent in the
+    <code>Authorization</code> header) and a <strong>private token</strong> (your signing key).
+    The same pair works in Sandbox and Production — the base URL alone decides the environment,
+    so there are no separate test keys to manage.</p>
+    <div class="danger"><strong>⚠ Your private token is a server-side secret.</strong>
+    Anyone who reads it can sign requests <em>as you</em> and operate your account — and a
+    token shipped to a browser or an app is already public.
+    <ul>
+      <li class="no">Never anywhere the browser can get it — page source, JavaScript bundles,
+      a config endpoint, cookies or storage — nor sent from it by <em>any</em> mechanism:
+      <code>fetch()</code>, XHR, WebSockets, form posts or whatever comes next.</li>
+      <li class="no">Never inside a mobile or desktop app — extracting it from the binary takes
+      minutes.</li>
+      <li class="yes">Always <strong>your backend&nbsp;→ Granve API</strong>: the customer's
+      browser talks to your server, and your server makes the signed call.</li>
+    </ul>
+    Exposing the token in public code is a security vulnerability on <em>your</em> side and
+    <strong>your responsibility as an integrator</strong>. Suspect a leak? Request an immediate
+    rotation of your keys. (The <a href="#console-anchor">API console</a> on this page is a
+    development aid — Sandbox keys only.)</div>
+  </div></div>
+
+  <div class="qs-step"><div class="qs-n">2</div><div class="qs-body">
+    <h3>Sign a request</h3>
+    <p>Every call carries three headers: <code>Authorization</code>, <code>X-Date</code> and
+    <code>X-Sign</code> — an HMAC-SHA256 signature of the timestamp, keyed with your private
+    token (<a href="#authentication">Authentication</a>). The sample on the right computes all
+    three for you in seven languages, and is runnable as-is against Sandbox.</p>
+  </div></div>
+
+  <div class="qs-step"><div class="qs-n">3</div><div class="qs-body">
+    <h3>Create a payment order</h3>
+    <p>Call <code>POST /v1.0/payment</code> with the amount, your own order id and the
+    customer's email. The response is the <a href="#payin">payment order object</a>: store the
+    <code>id</code> — your permanent handle for the transaction — and read the
+    <code>redirect_url</code>. Prefer zero code? Paste your keys in the
+    <a href="#console-anchor">API console</a> and press <em>Run</em>.</p>
+  </div></div>
+
+  <div class="qs-step"><div class="qs-n">4</div><div class="qs-body">
+    <h3>Redirect your customer</h3>
+    <p>Send the customer to <code>redirect_url</code> exactly as returned. The hosted payment
+    page shows the transfer details, collects the bank reference and validates the payment
+    directly with the bank — you never touch banking data yourself.</p>
+    <div class="note"><strong>In Sandbox</strong> the page shows a 🧪 test banner and no real
+    bank is contacted: type any reference ending in <code>00</code> to simulate a confirmed
+    payment (<a href="#testing">all magic references</a>).</div>
+  </div></div>
+
+  <div class="qs-step"><div class="qs-n">5</div><div class="qs-body">
+    <h3>Confirm the result</h3>
+    <p>When the order reaches a terminal state, Granve calls the webhook URL registered for
+    your account <em>once</em>, and sends the customer back to your return URL
+    (<a href="#webhooks">Webhooks &amp; return URL</a>). On every notification, confirm the
+    state with <code>GET /v1.0/payment/{id}</code> before delivering goods — the browser
+    redirect is informational, never proof of payment.</p>
+  </div></div>
+</div>
+
+<h3>Go live</h3>
+<p>Switch the base URL from <code>https://api-sandbox.granve.com</code> to
+<code>https://api.granve.com</code> — same credentials, same code. Before your first real
+charge:</p>
+<ul class="qs-check">
+  <li>Register your <strong>production</strong> webhook and return URLs. They are configured per
+  environment, so nothing you set up in Sandbox ever points at production.</li>
+  <li>Check that responses now say <code>"livemode": true</code> — a <code>false</code> here
+  means you are still calling Sandbox.</li>
+  <li>Make sure your webhook handler answers quickly with HTTP <code>200</code> — slow or
+  non-200 responses count as failed deliveries.</li>
+</ul>
+
+</div>
+<div class="codecol">
+<h3>Your first payment order</h3>
+<p class="hint">Runnable as-is against Sandbox — replace the two tokens with your keys.</p>
+<div id="quickstart-samples"></div>
+<h4>Response <code>200</code> (abridged)</h4>
+<pre><code>{
+  "id": "pi_00000000000000000000000000000000",
+  "status": "pending",
+  "livemode": false,
+  "created_at": "2026-01-01 00:00:00",
+  "redirect_url": "{base_url}/{payment_method}/pi_000…?signature=…",
+  "commerce": {
+    "order": "ORDER0001",
+    "amount": "100.00"
+  }
+}</code></pre>
+</div>
+</div>
+
+<h2 id="endpoints">Environments</h2>
 <p>If you have a Granve account, you can access the REST API through the following base URLs:</p>
 <table>
   <tr><th>Environment</th><th>Base URL</th></tr>
@@ -367,8 +492,12 @@ for your account.</p>
 </table>
 
 <p>If the <code>X-Date</code> header is missing, malformed, not UTC or outside the ±5-minute window,
-the API answers <code>401</code> with <code>error.code = "DATE_INVALID"</code> and a hint containing
-a valid example timestamp.</p>
+the API answers <code>401</code> with <code>error.code = "DATE_INVALID"</code> — the exact body is
+shown in <a href="#errors">Errors</a>.</p>
+
+<div class="danger"><strong>⚠ Never sign in the browser.</strong> Signing happens exclusively
+<strong>backend&nbsp;→ API</strong>: the private token must never reach a browser or an app —
+full rules in <a href="#quickstart">Quickstart, step&nbsp;1</a>.</div>
 
 </div>
 <div class="codecol">
@@ -376,85 +505,6 @@ a valid example timestamp.</p>
 <div id="auth-samples"></div>
 </div>
 </div>
-
-<h2 id="errors">Errors</h2>
-<p>The HTTP status code is the primary signal (see the <a href="#introduction">status table</a>).
-Every error body follows the same envelope:</p>
-<pre><code>{
-  "status": "failed",
-  "error": {
-    "type": "invalid_request_error",
-    "message": {
-      "amount": "must be at least 5 VES",
-      "order": "required"
-    }
-  }
-}</code></pre>
-<table>
-  <tr><th>error.type</th><th>Meaning</th></tr>
-  <tr><td><code>invalid_request_error</code></td><td>Your request failed validation — <code>error.message</code> lists each invalid field and the reason. Fix the request; do not retry as-is.</td></tr>
-  <tr><td><code>api_error</code></td><td>Something failed on Granve's side while processing a valid request. Safe to retry with backoff.</td></tr>
-</table>
-<p>Authentication failures return <code>401</code>. A missing or invalid <code>X-Date</code>
-header has a dedicated code and a hint with a valid example timestamp:</p>
-<pre><code>{
-  "status": "failed",
-  "error": {
-    "code": "DATE_INVALID",
-    "message": "El header X-Date es obligatorio.",
-    "hint": "Envía el header X-Date en UTC ISO-8601 con Z. Ejemplo (ahora): 2026-07-17T14:20:30Z",
-    "example": "2026-07-17T14:20:30Z",
-    "request_id": "…"
-  }
-}</code></pre>
-<p>Lookups that match nothing return <code>404</code> with
-<code>{"status": "failed", "error": {"message": "not found"}}</code>.</p>
-
-<h2 id="webhooks">Webhooks &amp; return URL</h2>
-<p>Your <strong>webhook URL</strong> and <strong>return URL</strong> are registered per account
-during onboarding — they are not sent per request. Contact Granve to set or change them.</p>
-
-<h3>PayIn webhook (server-to-server)</h3>
-<p>When a payment order reaches a <strong>terminal</strong> state
-(<code>completed</code>, <code>attempts_exhausted</code>, <code>expired</code>,
-<code>canceled_user</code>), Granve sends <strong>one</strong> notification to your registered
-webhook URL:</p>
-<ul>
-  <li><strong>Request:</strong> <code>POST</code> with the parameters both appended to the URL as a
-  query string and repeated as JSON body:</li>
-</ul>
-<pre><code>POST https://your-webhook.example.com/granve?token=op_000…&amp;status=completed&amp;order=ORDER0001
-Content-Type: application/json
-
-{
-  "token": "op_00000000000000000000000000000000",
-  "status": "completed",
-  "order": "ORDER0001"
-}</code></pre>
-<ul>
-  <li><strong>Acknowledge:</strong> respond with any <code>2xx</code> (an empty body is fine).
-  Anything else counts as a failed delivery.</li>
-  <li><strong>Retries:</strong> failed deliveries are retried up to <strong>3 times</strong> with a
-  short backoff. After that the delivery is logged as failed; a manual re-notification can be
-  requested.</li>
-  <li><strong>One-shot:</strong> the same <code>token</code> + <code>status</code> pair is never
-  delivered twice.</li>
-</ul>
-<div class="note"><strong>Always verify before delivering goods:</strong> the webhook body is not
-signed. Treat it as a hint — on reception, call
-<a href="#payment-get"><code>GET /v1.0/payment/{token}</code></a> (authenticated) and trust only
-that response as the source of truth for the order state and amount.</div>
-
-<h3>Payer return (browser redirect)</h3>
-<p>After finishing (or abandoning) the hosted payment page, the payer's browser is redirected to
-your registered return URL with the same three parameters appended:
-<code>?token=…&amp;status=…&amp;order=…</code>. This is a UX signal only — the webhook plus the
-authenticated query are the reliable channel.</p>
-
-<h3>PayOut notification</h3>
-<p>For payouts you may pass <code>urlnotify</code> per request. When the payout is processed, Granve
-sends <code>POST</code> with JSON body <code>{"token": "&lt;payout id&gt;"}</code> to that URL — then
-query <a href="#payout-get"><code>GET /v1.0/payout/{id}</code></a> to read the final state.</p>
 
 <h2 id="testing">Testing (sandbox)</h2>
 <p>The sandbox at <code>https://api-sandbox.granve.com</code> is a fully isolated environment —
@@ -494,12 +544,7 @@ a unique bank reference, so concurrent tests by different integrators never coll
       <select id="c-env">
         <option value="https://api-sandbox.granve.com">Sandbox — api-sandbox.granve.com</option>
         <option value="https://api.granve.com">Production — api.granve.com</option>
-        <option value="custom">Custom…</option>
       </select>
-    </div>
-    <div class="col" id="c-custom-wrap" style="display:none">
-      <label for="c-custom">Custom base URL</label>
-      <input id="c-custom" class="mono" placeholder="https://localhost:8000">
     </div>
     <div class="col">
       <label for="c-pub">Public token</label>
@@ -538,6 +583,90 @@ a unique bank reference, so concurrent tests by different integrators never coll
 with a network error, the API host most likely does not allow this page's origin in its CORS
 configuration (<code>CORS_ALLOWED_ORIGINS</code>).</p>
 
+<h2 id="errors">Errors</h2>
+<p>The HTTP status code is the primary signal (see the <a href="#introduction">status table</a>).
+Every error body follows the same envelope:</p>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "type": "invalid_request_error",
+    "message": {
+      "amount": "must be at least 5 VES",
+      "order": "required"
+    }
+  }
+}</code></pre>
+<table>
+  <tr><th>error.type</th><th>Meaning</th></tr>
+  <tr><td><code>invalid_request_error</code></td><td>Your request failed validation — <code>error.message</code> lists each invalid field and the reason. Fix the request; do not retry as-is.</td></tr>
+  <tr><td><code>api_error</code></td><td>Something failed on Granve's side while processing a valid request. Safe to retry with backoff.</td></tr>
+</table>
+<p>Authentication failures return <code>401</code>. A missing or invalid <code>X-Date</code>
+header has a dedicated code and a hint with a valid example timestamp:</p>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "code": "DATE_INVALID",
+    "message": "El header X-Date es obligatorio.",
+    "hint": "Envía el header X-Date en UTC ISO-8601 con Z. Ejemplo (ahora): 2026-07-17T14:20:30Z",
+    "example": "2026-07-17T14:20:30Z",
+    "request_id": "…"
+  }
+}</code></pre>
+<p>Lookups that match nothing return <code>404</code> with
+<code>{"status": "failed", "error": {"message": "not found"}}</code>.</p>
+
+<h2 id="webhooks">Webhooks &amp; return URL</h2>
+<p><strong>One action, every object.</strong> When an object reaches its final state, Granve sends
+a <code>POST</code> to the <strong>webhook URL registered for your account</strong>. The payload,
+the acknowledgement rule and the retry policy are identical for every object type — the only
+thing that depends on the object is <em>when</em> it fires:</p>
+
+<table>
+  <tr><th>Object</th><th><code>id</code></th><th>Fires when</th><th><code>status</code> arrives as</th></tr>
+  <tr><td><a href="#payin">Payment order</a></td><td><code>pi_…</code></td><td>The order reaches a terminal state</td><td><code>completed</code>, <code>attempts_exhausted</code>, <code>expired</code>, <code>canceled_user</code></td></tr>
+  <tr><td><a href="#payout">Payout</a></td><td><code>po_…</code></td><td>The payout is processed by the bank</td><td><code>success</code>, <code>denied</code></td></tr>
+</table>
+
+<p>Every notification carries the same three parameters, appended to the URL as a query string
+<em>and</em> repeated as the JSON body:</p>
+
+<table>
+  <tr><th>Parameter</th><th>Value</th></tr>
+  <tr><td><code>id</code></td><td>Identifier of the object (<code>pi_…</code> / <code>po_…</code>).</td></tr>
+  <tr><td><code>status</code></td><td>Status at notification time (see the table above).</td></tr>
+  <tr><td><code>order</code></td><td>Your own identifier, exactly as you sent it on Create.</td></tr>
+</table>
+
+<pre><code>POST https://your-webhook.example.com/granve?id=pi_000…&amp;status=completed&amp;order=ORDER0001
+Content-Type: application/json
+
+{
+  "id": "pi_00000000000000000000000000000000",
+  "status": "completed",
+  "order": "ORDER0001"
+}</code></pre>
+
+<h3>Delivery rules — the same for every notification</h3>
+<ul>
+  <li><strong>One delivery</strong> per <code>id</code> + <code>status</code> pair — never twice.</li>
+  <li><strong>Acknowledge with HTTP <code>200</code> exactly</strong> (an empty body is fine).
+  Anything else — including other <code>2xx</code> codes — counts as a failed delivery.</li>
+  <li><strong>Failed deliveries are retried up to 3 times</strong> with a short backoff; after
+  that, a manual re-notification can be requested.</li>
+  <li><strong>Never act on the notification alone.</strong> It is not signed — confirm with the
+  authenticated GET (<a href="#payment-get">payment</a> / <a href="#payout-get">payout</a>), and
+  poll that same endpoint whenever an expected notification is missing.</li>
+</ul>
+<p class="hint">Legacy: accounts without a registered webhook URL fall back, for payouts only, to
+the deprecated per-request <code>urlnotify</code> field.</p>
+
+<h3>Payer return (browser redirect)</h3>
+<p>After finishing (or abandoning) the hosted payment page, the payer's browser is redirected to
+your <strong>registered return URL</strong> with the same three parameters appended:
+<code>?id=…&amp;status=…&amp;order=…</code>. This is a UX signal only — the webhook plus the
+authenticated query are the reliable channel.</p>
+
 <h2 id="payin">Payment (PayIn)</h2>
 <p>A <em>payment order</em> represents a charge to your customer. You create it, redirect the customer
 to the returned <code>redirect_url</code> (the hosted payment page), and the customer pays through the
@@ -565,10 +694,11 @@ process the order. Always use the returned value <em>verbatim</em> — never bui
 <div class="codecol">
 <h4>Object example</h4>
 <pre><code>{
-  "token": "op_00000000000000000000000000000000",
+  "id": "pi_00000000000000000000000000000000",
   "status": "pending",
+  "livemode": false,
   "created_at": "2026-01-01 00:00:00",
-  "redirect_url": "{base_url}/{payment_method}/op_00000000000000000000000000000000?signature=…",
+  "redirect_url": "{base_url}/{payment_method}/pi_00000000000000000000000000000000?signature=…",
   "commerce": {
     "order": "ORDER0001",
     "subject": "Lorem ipsum dolor sit",
@@ -636,7 +766,7 @@ backward compatibility; its values are <code>mobile</code> or <code>transfer</co
 <div class="codecol">
 <h4>Object example</h4>
 <pre><code>{
-  "id": "1000000000000001",
+  "id": "po_00000000000000000000000000000000",
   "status": "register",
   "created_at": "2026-01-01 00:00:00",
   "commerce": {
@@ -715,6 +845,13 @@ it). <code>balance</code> is the wallet balance right after this movement.</p>
 <h2 id="changelog">Changelog</h2>
 <table>
   <tr><th>Version</th><th>Date</th><th>Changes</th></tr>
+  <tr><td><code>1.1.0</code></td><td>2026-07</td><td><code>id</code> is the identifier of
+  every object — payment orders use <code>pi_…</code> and payouts <code>po_…</code> (legacy
+  <code>op_…</code>/numeric id <em>values</em> remain queryable; the <code>token</code>
+  response field was removed). All notifications share one payload contract
+  (<code>id</code>/<code>status</code>/<code>order</code>, query string + JSON body) and are
+  sent to the webhook URL registered per account. Acknowledgement is HTTP <code>200</code>
+  exactly.</td></tr>
   <tr><td><code>1.0.0</code></td><td>2026-07</td><td>Initial release of the Granve API
   documentation: Payment (PayIn), Payment (PayOut) and Wallet endpoints; guides for authentication,
   errors, webhooks and sandbox testing; live API console with automatic request
@@ -801,6 +938,7 @@ async function signWithPrivateKey(msg) {
       a.classList.toggle("nav-hidden", !match);
       if (match) visible++;
     });
+    document.querySelectorAll("#nav .nav-label").forEach(l => l.classList.toggle("nav-hidden", Boolean(q)));
     document.querySelectorAll("#nav .navgroup").forEach(g => {
       const any = g.querySelectorAll(".group-items a:not(.nav-hidden)").length > 0;
       g.classList.toggle("nav-hidden", q && !any);
@@ -823,27 +961,22 @@ function loadCreds() {
 }
 function saveCreds() {
   localStorage.setItem(LS_KEY, JSON.stringify({
-    env: $("#c-env").value, custom: $("#c-custom").value,
+    env: $("#c-env").value,
     pub: $("#c-pub").value,
   }));
 }
 function baseUrl() {
-  const env = $("#c-env").value;
-  const url = env === "custom" ? ($("#c-custom").value || "").trim() : env;
-  return url.replace(/\/+$/, "");
+  return $("#c-env").value.replace(/\/+$/, "");
 }
 (function initConsole() {
   const c = loadCreds();
   // host sandbox antiguo (pre-rename) → al actual
   if (c.env === "https://sandbox-api.granve.com") c.env = "https://api-sandbox.granve.com";
-  if (c.env) $("#c-env").value = c.env;
-  if (c.custom) $("#c-custom").value = c.custom;
+  if (c.env && c.env !== "custom") $("#c-env").value = c.env;
   if (c.pub) $("#c-pub").value = c.pub;
-  if (c.priv) saveCreds(); // purge private tokens persisted by older versions of this page
-  const syncCustom = () => { $("#c-custom-wrap").style.display = $("#c-env").value === "custom" ? "" : "none"; };
-  syncCustom();
-  ["c-env", "c-custom", "c-pub"].forEach(id =>
-    $("#" + id).addEventListener("input", () => { syncCustom(); saveCreds(); renderAllSamples(); }));
+  if (c.priv || c.custom) saveCreds(); // purge private tokens / custom URLs persisted by older versions of this page
+  ["c-env", "c-pub"].forEach(id =>
+    $("#" + id).addEventListener("input", () => { saveCreds(); renderAllSamples(); }));
 
   async function loadPrivKey() {
     const raw = $("#c-priv").value.trim();
@@ -1177,10 +1310,9 @@ const ENDPOINTS = [
     title: "Create a payment order",
     desc: `Creates a payment order for your account and returns the <a href="#payin">payment order object</a>,
 including the <code>redirect_url</code> where you must send your customer to pay. Store the returned
-<code>token</code>: it is the identifier for every later query.
-<p>Once the payer finishes, the terminal result is delivered <strong>once</strong> to the webhook URL
-registered for your account, and the payer is redirected to your registered return URL with
-<code>?token=…&amp;status=…&amp;order=…</code> appended.</p>`,
+<code>id</code>: it is the identifier for every later query.
+<p>When the order reaches a terminal state, the result is delivered as described in
+<a href="#webhooks">Webhooks &amp; return URL</a>.</p>`,
     fieldsTitle: "Body parameters",
     fields: [
       ["payment", "string", true, "Token of the payment method to charge with, from the methods enabled for your account (provided during onboarding).", "^[A-Za-z0-9]+$"],
@@ -1254,13 +1386,14 @@ stabler than <code>page</code> for deep listings.</p>`,
   {
     id: "payment-get",
     method: "GET",
-    path: "/v1.0/payment/{token}",
-    title: "Get a payment order by token",
-    desc: `Retrieves one payment order using the <code>token</code> returned by
-<a href="#payment-create">Create</a>.`,
+    path: "/v1.0/payment/{id}",
+    title: "Get a payment order by id",
+    desc: `Retrieves one payment order using the <code>id</code> returned by
+<a href="#payment-create">Create</a>. Ids created before 2026-07 used the <code>op_</code> prefix —
+they remain valid forever.`,
     fieldsTitle: "Path parameters",
     fields: [
-      ["token", "string", true, "The payment order token (e.g. <code>op_000000000000…</code>).", "^op_[a-f0-9]{32}$"],
+      ["id", "string", true, "The payment order id (e.g. <code>pi_000000000000…</code>). Legacy <code>op_…</code> ids remain valid.", "^(pi|op)_[a-f0-9]{32}$"],
     ],
     responses: `<h4>Response <code>200</code></h4>
 <p>The <a href="#payin">payment order object</a>.</p>
@@ -1271,7 +1404,7 @@ stabler than <code>page</code> for deep listings.</p>`,
     "message": "not found"
   }
 }</code></pre>`,
-    pathParams: [["token", "op_00000000000000000000000000000000"]],
+    pathParams: [["id", "pi_00000000000000000000000000000000"]],
     tryit: { path: true },
   },
   {
@@ -1320,7 +1453,7 @@ from the account's first 4 digits).</p>`,
       ["bank.num", "string", true, "11-digit mobile number (Pago Móvil) or 20-digit account number (transfer).", "^((0412|0414|0416|0422|0424|0426)\\d{7}|\\d{20})$"],
       ["bank.code", "string", false, "Bank code — <strong>required for Pago Móvil</strong> (11-digit num). One of: 0102, 0104, 0105, 0108, 0114, 0115, 0128, 0134, 0137, 0138, 0146, 0151, 0156, 0157, 0163, 0166, 0168, 0169, 0171, 0172, 0173, 0174, 0175, 0178, 0191.", "^\\d{4}$"],
       ["bank.type", "string", false, "Account type — <strong>required for transfers</strong> (20-digit num): <code>A</code> (savings) or <code>C</code> (checking).", "^[AC]$"],
-      ["urlnotify", "string", false, "Callback URL notified when the payout is processed (see <a href=\"#webhooks\">PayOut notification</a>). Up to 255 characters.", "^https?://.+$"],
+      ["urlnotify", "string", false, "<strong>Deprecated.</strong> Notifications go to your registered webhook URL (see <a href=\"#webhooks\">PayOut notification</a>); this per-request URL is only used as fallback when your account has none registered. Up to 255 characters.", "^https?://.+$"],
       ["additional_parameters", "object", false, "Free key/value object stored with the payout."],
     ],
     body: {
@@ -1400,16 +1533,17 @@ pass <code>start_date</code>/<code>end_date</code>; for deep listings use keyset
     path: "/v1.0/payout/{id}",
     title: "Get a payout by id",
     desc: `Retrieves one payout using the <code>id</code> returned by
-<a href="#payout-create">Create</a>. Lookups cover the last <strong>180 days</strong>.`,
+<a href="#payout-create">Create</a> (<code>po_…</code>; legacy numeric ids remain valid).
+Lookups cover the last <strong>180 days</strong>.`,
     fieldsTitle: "Path parameters",
     fields: [
-      ["id", "string", true, "The payout id from the create response.", "^\\d+$"],
+      ["id", "string", true, "The payout id (e.g. <code>po_000000000000…</code>). Payouts created before 2026-07 used numeric ids — still accepted.", "^(po_[a-f0-9]{32}|\\d+)$"],
     ],
     responses: `<h4>Response <code>200</code></h4>
 <p>The <a href="#payout">payout object</a>.</p>
 <h4>Response <code>404</code></h4>
 <p>Unknown id, or the payout is older than 180 days.</p>`,
-    pathParams: [["id", "1000000000000001"]],
+    pathParams: [["id", "po_00000000000000000000000000000000"]],
     tryit: { path: true },
   },
   {
@@ -1524,8 +1658,14 @@ function renderAllSamples() {
   renderSample("auth", {
     method: "GET",
     base: baseUrl() || "https://api-sandbox.granve.com",
-    path: "/v1.0/payment/op_00000000000000000000000000000000",
+    path: "/v1.0/payment/pi_00000000000000000000000000000000",
     body: null,
+  });
+  renderSample("quickstart", {
+    method: "POST",
+    base: baseUrl() || "https://api-sandbox.granve.com",
+    path: "/v1.0/payment",
+    body: CREATE_BODY,
   });
 }
 
@@ -1585,6 +1725,7 @@ function renderEndpoint(ep) {
 
 ENDPOINTS.forEach(renderEndpoint);
 $("#auth-samples").innerHTML = tabsHtml("auth");
+$("#quickstart-samples").innerHTML = tabsHtml("quickstart");
 renderAllSamples();
 
 // los <pre> scrollean horizontalmente: deben ser enfocables por teclado (a11y)
