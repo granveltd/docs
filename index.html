@@ -346,6 +346,12 @@ and standard HTTP status codes. All responses are JSON, including errors.</p>
   <tr><td><code>500</code></td><td>Internal server error.</td></tr>
 </table>
 
+<p><strong>Need access or help?</strong> The <strong>Granve compliance team</strong> at
+<a href="mailto:hola@granve.com">hola@granve.com</a> provisions accounts, issues credentials, and
+registers your webhook and return URLs — email them to get started or when something is not
+working. Prefer the machine-readable contract? Download the
+<a href="openapi.yaml" download>OpenAPI 3.0 specification</a>.</p>
+
 <h3>Conventions</h3>
 <ul>
   <li><strong>Monetary amounts in responses are strings</strong> with two decimals
@@ -400,10 +406,13 @@ both environments, so the code you write on day one is the code that runs in pro
 <div class="qs-steps">
   <div class="qs-step"><div class="qs-n">1</div><div class="qs-body">
     <h3>Get your credentials</h3>
-    <p>Your account has two access keys: a <strong>public token</strong> (sent in the
+    <p>Request access from the <strong>Granve compliance team</strong> at
+    <a href="mailto:hola@granve.com">hola@granve.com</a>. They provision your account and reply
+    with your two access keys: a <strong>public token</strong> (sent in the
     <code>Authorization</code> header) and a <strong>private token</strong> (your signing key).
     The same pair works in Sandbox and Production — the base URL alone decides the environment,
-    so there are no separate test keys to manage.</p>
+    so there are no separate test keys to manage. Your webhook and return URLs are also
+    registered by the compliance team; email them to set or change them.</p>
     <div class="danger"><strong>⚠ Your private token is a server-side secret.</strong>
     Anyone who reads it can sign requests <em>as you</em> and operate your account — and a
     token shipped to a browser or an app is already public.
@@ -814,7 +823,9 @@ it). <code>balance</code> is the wallet balance right after this movement.</p>
 
 <h2 id="webhooks">Webhooks &amp; return URL</h2>
 <p><strong>One action, every object.</strong> When an object reaches its final state, Granve sends
-a <code>POST</code> to the <strong>webhook URL registered for your account</strong>. The payload,
+a <code>POST</code> to the <strong>webhook URL registered for your account</strong> (set by the
+compliance team — email <a href="mailto:hola@granve.com">hola@granve.com</a> to add or change it).
+The payload,
 the acknowledgement rule and the retry policy are identical for every object type — the only
 thing that depends on the object is <em>when</em> it fires:</p>
 
@@ -964,6 +975,12 @@ API only allows known origins. (Reminder: production integrations must call the 
 <strong>backend</strong>, never from a browser.)</p>
 <p><strong>Fix:</strong> use this documentation's <a href="#console-anchor">API console</a> for
 browser testing, and your server for everything else.</p>
+
+<h3>Still stuck?</h3>
+<p>Email the <strong>Granve compliance team</strong> at
+<a href="mailto:hola@granve.com">hola@granve.com</a> — the same contact that provisions accounts
+and registers webhook/return URLs. Include the <code>request_id</code> from the error response
+when you have one; it lets them trace the exact call.</p>
 
 <h2 id="changelog">Changelog</h2>
 <table>
