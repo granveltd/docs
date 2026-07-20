@@ -419,9 +419,18 @@ query <a href="#payout-get"><code>GET /v1.0/payout/{id}</code></a> to read the f
 <p>The sandbox at <code>https://api-sandbox.granve.com</code> is a fully isolated environment —
 <strong>your same credentials work on both environments</strong>; only the base URL changes.
 Everything you create in sandbox lives in a separate database and never touches real money.</p>
-<div class="note"><strong>Bank confirmation simulation is being enabled.</strong> Today the full
-create/query API surface works in sandbox; simulated payment confirmations (magic test references)
-are coming soon — until then, sandbox orders stay <code>pending</code> until they expire.</div>
+<h3>Magic test references</h3>
+<p>On the sandbox payment page, the outcome is decided by the <strong>last two digits</strong> of
+the reference you type — no real bank is ever contacted:</p>
+<table>
+  <tr><th>Reference ends in</th><th>Simulated bank response</th><th>Result</th></tr>
+  <tr><td><code>00</code></td><td>Payment found, exact amount</td><td>Order <code>completed</code></td></tr>
+  <tr><td><code>99</code></td><td>Bank cannot find the payment</td><td>Attempt rejected</td></tr>
+  <tr><td><code>50</code></td><td>Payment found with a different amount</td><td>Attempt rejected (amount cross-check)</td></tr>
+  <tr><td>anything else</td><td>Bank temporarily unavailable</td><td>Attempt fails; order stays <code>pending</code> (retry allowed)</td></tr>
+</table>
+<p>Magic references can be <strong>reused freely</strong> — every simulated payment is recorded under
+a unique bank reference, so concurrent tests by different integrators never collide.</p>
 <ul>
   <li><strong>Full PayIn flow:</strong> create an order, open the returned <code>redirect_url</code>
   in a browser to see the hosted payment page, then query the order by token or by your own
