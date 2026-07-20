@@ -846,9 +846,8 @@ it). <code>balance</code> is the wallet balance right after this movement.</p>
 <table>
   <tr><th>Version</th><th>Date</th><th>Changes</th></tr>
   <tr><td><code>1.1.0</code></td><td>2026-07</td><td><code>id</code> is the identifier of
-  every object — payment orders use <code>pi_…</code> and payouts <code>po_…</code> (legacy
-  <code>op_…</code>/numeric id <em>values</em> remain queryable; the <code>token</code>
-  response field was removed). All notifications share one payload contract
+  every object: payment orders use <code>pi_…</code> and payouts <code>po_…</code>; the
+  <code>token</code> response field was removed. All notifications share one payload contract
   (<code>id</code>/<code>status</code>/<code>order</code>, query string + JSON body) and are
   sent to the webhook URL registered per account. Acknowledgement is HTTP <code>200</code>
   exactly.</td></tr>
@@ -1389,11 +1388,10 @@ stabler than <code>page</code> for deep listings.</p>`,
     path: "/v1.0/payment/{id}",
     title: "Get a payment order by id",
     desc: `Retrieves one payment order using the <code>id</code> returned by
-<a href="#payment-create">Create</a>. Ids created before 2026-07 used the <code>op_</code> prefix —
-they remain valid forever.`,
+<a href="#payment-create">Create</a>.`,
     fieldsTitle: "Path parameters",
     fields: [
-      ["id", "string", true, "The payment order id (e.g. <code>pi_000000000000…</code>). Legacy <code>op_…</code> ids remain valid.", "^(pi|op)_[a-f0-9]{32}$"],
+      ["id", "string", true, "The payment order id (e.g. <code>pi_000000000000…</code>).", "^pi_[a-f0-9]{32}$"],
     ],
     responses: `<h4>Response <code>200</code></h4>
 <p>The <a href="#payin">payment order object</a>.</p>
@@ -1533,11 +1531,10 @@ pass <code>start_date</code>/<code>end_date</code>; for deep listings use keyset
     path: "/v1.0/payout/{id}",
     title: "Get a payout by id",
     desc: `Retrieves one payout using the <code>id</code> returned by
-<a href="#payout-create">Create</a> (<code>po_…</code>; legacy numeric ids remain valid).
-Lookups cover the last <strong>180 days</strong>.`,
+<a href="#payout-create">Create</a>. Lookups cover the last <strong>180 days</strong>.`,
     fieldsTitle: "Path parameters",
     fields: [
-      ["id", "string", true, "The payout id (e.g. <code>po_000000000000…</code>). Payouts created before 2026-07 used numeric ids — still accepted.", "^(po_[a-f0-9]{32}|\\d+)$"],
+      ["id", "string", true, "The payout id (e.g. <code>po_000000000000…</code>).", "^po_[a-f0-9]{32}$"],
     ],
     responses: `<h4>Response <code>200</code></h4>
 <p>The <a href="#payout">payout object</a>.</p>
