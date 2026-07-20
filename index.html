@@ -306,7 +306,8 @@
     <div class="navgroup collapsed">
       <button class="group-toggle" aria-expanded="false" type="button">Tools <span class="chev">▾</span></button>
       <div class="group-items">
-        <a href="#tools-methods" data-kw="tools get /v1.0/payment-methods payment methods catalog enabled discover list bank type"><span class="m get">GET</span>Payment methods</a>
+        <a href="#tools-methods" data-kw="tools get /v1.0/payment-methods payment methods catalog enabled discover list type"><span class="m get">GET</span>Payment methods</a>
+        <a href="#tools-banks" data-kw="tools get /v1.0/banks bank codes catalog pago movil transfer sudeban list"><span class="m get">GET</span>Banks</a>
       </div>
     </div>
     <a href="#changelog" data-kw="changelog versions release history">Changelog</a>
@@ -852,6 +853,8 @@ it). <code>balance</code> is the wallet balance right after this movement.</p>
 <p>Utility endpoints that support your integration.</p>
 
 <section id="tools-methods"></section>
+
+<section id="tools-banks"></section>
 
 <h2 id="changelog">Changelog</h2>
 <table>
@@ -1460,7 +1463,7 @@ from the account's first 4 digits).</p>`,
       ["bank.name", "string", true, "Beneficiary's name, 3–50 characters.", "^[a-zA-Z0-9 ]{3,50}$"],
       ["bank.document", "string", true, "Identity document: type letter (V, E, J) + 7–10 digits (e.g. <code>V00000000</code>).", "^[VEJ]\\d{7,10}$"],
       ["bank.num", "string", true, "11-digit mobile number (Pago Móvil) or 20-digit account number (transfer).", "^((0412|0414|0416|0422|0424|0426)\\d{7}|\\d{20})$"],
-      ["bank.code", "string", false, "Bank code — <strong>required for Pago Móvil</strong> (11-digit num). One of: 0102, 0104, 0105, 0108, 0114, 0115, 0128, 0134, 0137, 0138, 0146, 0151, 0156, 0157, 0163, 0166, 0168, 0169, 0171, 0172, 0173, 0174, 0175, 0178, 0191.", "^\\d{4}$"],
+      ["bank.code", "string", false, "Bank code — <strong>required for Pago Móvil</strong> (11-digit num). Any code returned by <a href=\"#tools-banks\">GET /v1.0/banks</a>.", "^\\d{4}$"],
       ["bank.type", "string", false, "Account type — <strong>required for transfers</strong> (20-digit num): <code>A</code> (savings) or <code>C</code> (checking).", "^[AC]$"],
       ["urlnotify", "string", false, "<strong>Deprecated.</strong> Notifications go to your registered webhook URL (see <a href=\"#webhooks\">PayOut notification</a>); this per-request URL is only used as fallback when your account has none registered. Up to 255 characters.", "^https?://.+$"],
       ["additional_parameters", "object", false, "Free key/value object stored with the payout."],
@@ -1651,15 +1654,34 @@ for your account yet.</p>
     "name": "Lorem Ipsum",
     "description": "Lorem ipsum dolor sit amet",
     "type": "mobile_payment",
-    "currency": "VES",
-    "bank": {
-      "name": "Lorem Ipsum Bank",
-      "code": "0000"
-    }
+    "currency": "VES"
   }
 ]</code></pre>
 <p><code>type</code> is one of <code>mobile_payment</code>, <code>bank_transfer</code> or
 <code>card</code>.</p>`,
+    tryit: {},
+  },
+  {
+    id: "tools-banks",
+    method: "GET",
+    path: "/v1.0/banks",
+    title: "List accepted banks",
+    desc: `Returns the bank catalog accepted by the API. Every <code>code</code> in this list is
+a valid value for <code>bank.code</code> on <a href="#payout-create">Create a payout</a> and for
+<code>payer.bank_code</code> on <a href="#payment-create">Create a payment order</a> — and vice
+versa. The catalog rarely changes; cache it and refresh on demand.`,
+    responses: `<h4>Response <code>200</code></h4>
+<p>JSON array — one object per accepted bank, ordered by code.</p>
+<pre><code>[
+  {
+    "code": "0102",
+    "name": "BANCO DE VENEZUELA"
+  },
+  {
+    "code": "0104",
+    "name": "BANCO VENEZOLANO DE CREDITO"
+  }
+]</code></pre>`,
     tryit: {},
   },
 ];
