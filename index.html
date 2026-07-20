@@ -328,7 +328,7 @@
 <div id="content">
 
 <h1 id="introduction">Granve API</h1>
-<p class="sub">REST API for creating and managing payments — v1.0.2</p>
+<p class="sub">REST API for creating and managing payments — v1.0.0</p>
 
 <p>Welcome to the Granve API. It lets you create payment orders, redirect your customer to a hosted
 payment page, and query the state of every transaction of your account.</p>
@@ -345,6 +345,19 @@ and standard HTTP status codes. All responses are JSON, including errors.</p>
   <tr><td><code>409</code></td><td>Conflict — the <code>order</code> identifier already exists for your account.</td></tr>
   <tr><td><code>500</code></td><td>Internal server error.</td></tr>
 </table>
+
+<h3>Conventions</h3>
+<ul>
+  <li><strong>Monetary amounts in responses are strings</strong> with two decimals
+  (<code>"100.00"</code>) — parse them with a decimal type, never float.</li>
+  <li><strong>Lists return <code>200</code> with an empty array</strong> (<code>[]</code>) when
+  nothing matches — <code>404</code> is reserved for missing individual resources. Without
+  dates, every list defaults to <strong>today only</strong>.</li>
+  <li><strong>Response timestamps</strong> use <code>YYYY-MM-DD HH:MM:SS</code> in
+  <strong>America/Caracas time (UTC−4, no DST)</strong> — Venezuela's timezone, where all
+  payments settle. Note this differs from the <code>X-Date</code> request header, which must be
+  UTC.</li>
+</ul>
 
 <h2 id="quickstart">Quickstart</h2>
 <p class="sub">From zero to your first confirmed payment — no SDK required.</p>
@@ -526,7 +539,7 @@ full rules in <a href="#quickstart">Quickstart, step&nbsp;1</a>.</div>
 <p>The sandbox at <code>https://api-sandbox.granve.com</code> is a fully isolated environment —
 <strong>your same credentials work on both environments</strong>; only the base URL changes.
 Everything you create in sandbox lives in a separate database and never touches real money.</p>
-<h3>Magic test references</h3>
+<h3>Magic references — Payment (PayIn)</h3>
 <p>On the sandbox payment page, the outcome is decided by the <strong>last two digits</strong> of
 the reference you type — no real bank is ever contacted:</p>
 <table>
@@ -538,6 +551,19 @@ the reference you type — no real bank is ever contacted:</p>
 </table>
 <p>Magic references can be <strong>reused freely</strong> — every simulated payment is recorded under
 a unique bank reference, so concurrent tests by different integrators never collide.</p>
+
+<h3>Magic amounts — Payment (PayOut)</h3>
+<p>Payouts are simulated too: your sandbox wallet is <strong>automatically topped up with test
+balance</strong> (so creation never fails for insufficient funds), and the bank result is decided
+by the <strong>last two digits of the amount</strong>, a few seconds after creation:</p>
+<table>
+  <tr><th>Amount ends in</th><th>Result</th></tr>
+  <tr><td><code>99</code></td><td><code>declined</code> — the wallet is refunded (amount + fee), and the webhook fires</td></tr>
+  <tr><td><code>50</code></td><td>Stays in <code>created</code> — useful to test polling and pending states</td></tr>
+  <tr><td>anything else</td><td><code>completed</code> in ~10 seconds, with deposit fields set — the webhook fires</td></tr>
+</table>
+<p>Example: <code>"amount": 199</code> simulates a rejected payout; <code>"amount": 100</code>
+completes normally.</p>
 <ul>
   <li><strong>Full PayIn flow:</strong> create an order, open the returned <code>redirect_url</code>
   in a browser to see the hosted payment page, then query the order by token or by your own
@@ -694,25 +720,25 @@ payout generated (amount and fee). <code>bank.method</code> is <code>mobile</cod
 <p><code>status</code> is one of:</p>
 <table>
   <tr><th>Status</th><th>Meaning</th></tr>
-  <tr><td><code>register</code></td><td>Payout accepted and queued; wallet already debited.</td></tr>
+  <tr><td><code>created</code></td><td>Payout accepted and queued; wallet already debited.</td></tr>
   <tr><td><code>processing</code></td><td>Being executed against the bank.</td></tr>
-  <tr><td><code>success</code></td><td>Money delivered to the beneficiary.</td></tr>
-  <tr><td><code>denied</code> / <code>rejected</code></td><td>The bank refused the operation.</td></tr>
-  <tr><td><code>to-liquidate</code> / <code>liquidated</code></td><td>Settlement lifecycle states.</td></tr>
+  <tr><td><code>completed</code></td><td>Money delivered to the beneficiary.</td></tr>
+  <tr><td><code>declined</code> / <code>rejected</code></td><td>The bank refused the operation; the wallet is refunded.</td></tr>
+  <tr><td><code>settlement_pending</code> / <code>settled</code></td><td>Settlement lifecycle states.</td></tr>
 </table>
 </div>
 <div class="codecol">
 <h4>Object example</h4>
 <pre><code>{
   "id": "po_00000000000000000000000000000000",
-  "status": "register",
+  "status": "created",
   "created_at": "2026-01-01 00:00:00",
   "commerce": {
     "email": "user@example.com",
     "phone": "04120000000",
     "order": "PO-0001",
     "subject": "Lorem ipsum payout",
-    "amount": 100,
+    "amount": "100.00",
     "bank": {
       "name": "Lorem Ipsum",
       "document": "00000000",
@@ -726,19 +752,19 @@ payout generated (amount and fee). <code>bank.method</code> is <code>mobile</cod
   "wallet": {
     "payout": {
       "id": "1000000000000002",
-      "create_at": "2026-01-01 00:00:00",
+      "created_at": "2026-01-01 00:00:00",
       "type": "expense",
       "subject": "Cargo payout - 1000000000000002",
-      "amount": 100,
+      "amount": "100.00",
       "currency": "VES",
-      "deposit": { "date": null, "amount": 0 }
+      "deposit": { "date": null, "amount": "0.00" }
     },
     "payout_tax": {
       "id": "1000000000000003",
-      "create_at": "2026-01-01 00:00:00",
+      "created_at": "2026-01-01 00:00:00",
       "type": "expense",
       "subject": "Cargo tax payout",
-      "amount": 1,
+      "amount": "1.00",
       "currency": "VES"
     }
   }
@@ -765,11 +791,11 @@ it). <code>balance</code> is the wallet balance right after this movement.</p>
 <h4>Object example</h4>
 <pre><code>{
   "id": "1000000000000002",
-  "create_at": "2026-01-01 00:00:00",
+  "created_at": "2026-01-01 00:00:00",
   "type": "expense",
   "subject": "Cargo payout - 1000000000000002",
-  "amount": 100.00,
-  "balance": 900.00,
+  "amount": "100.00",
+  "balance": "900.00",
   "currency": "VES"
 }</code></pre>
 </div>
@@ -795,7 +821,7 @@ thing that depends on the object is <em>when</em> it fires:</p>
 <table>
   <tr><th>Object</th><th><code>id</code></th><th>Fires when</th><th><code>status</code> arrives as</th></tr>
   <tr><td><a href="#payin">Payment order</a></td><td><code>pi_…</code></td><td>The order reaches a terminal state</td><td><code>completed</code>, <code>attempts_exhausted</code>, <code>expired</code>, <code>canceled_user</code></td></tr>
-  <tr><td><a href="#payout">Payout</a></td><td><code>po_…</code></td><td>The payout is processed by the bank</td><td><code>success</code>, <code>denied</code></td></tr>
+  <tr><td><a href="#payout">Payout</a></td><td><code>po_…</code></td><td>The payout is processed by the bank</td><td><code>completed</code>, <code>declined</code></td></tr>
 </table>
 
 <p>Every notification carries the same three parameters, appended to the URL as a query string
@@ -806,28 +832,57 @@ thing that depends on the object is <em>when</em> it fires:</p>
   <tr><td><code>id</code></td><td>Identifier of the object (<code>pi_…</code> / <code>po_…</code>).</td></tr>
   <tr><td><code>status</code></td><td>Status at notification time (see the table above).</td></tr>
   <tr><td><code>order</code></td><td>Your own identifier, exactly as you sent it on Create.</td></tr>
+  <tr><td><code>livemode</code></td><td><code>true</code>/<code>false</code> — which environment fired the webhook (JSON body only).</td></tr>
 </table>
 
 <pre><code>POST https://your-webhook.example.com/granve?id=pi_000…&amp;status=completed&amp;order=ORDER0001
 Content-Type: application/json
+X-Date: 2026-01-01T00:00:00Z
+X-Sign: 3f1a…64 hex…
 
 {
   "id": "pi_00000000000000000000000000000000",
   "status": "completed",
-  "order": "ORDER0001"
+  "order": "ORDER0001",
+  "livemode": true
 }</code></pre>
 
 <h3>Delivery rules — the same for every notification</h3>
+<div class="split">
+<div class="doc">
 <ul>
   <li><strong>One delivery</strong> per <code>id</code> + <code>status</code> pair — never twice.</li>
+  <li><strong>Every delivery is signed over its body:</strong> the headers carry
+  <code>X-Date</code> (UTC ISO-8601 <code>Z</code>) and <code>X-Sign</code> =
+  <code>HMAC_SHA256(X-Date + "." + raw_body, your_private_token)</code>. Signing the body — not
+  just the timestamp — means a captured signature cannot be reused with a different payload.
+  Verify before trusting the body: recompute the HMAC over the received <code>X-Date</code> and
+  the <strong>exact raw body</strong>, compare in constant time, and reject if the date is older
+  than <strong>5 minutes</strong>. Only Granve and you hold that key.</li>
   <li><strong>Acknowledge with HTTP <code>200</code> exactly</strong> (an empty body is fine).
   Anything else — including other <code>2xx</code> codes — counts as a failed delivery.</li>
-  <li><strong>Failed deliveries are retried up to 3 times</strong> with a short backoff; after
-  that, a manual re-notification can be requested.</li>
-  <li><strong>Never act on the notification alone.</strong> It is not signed — confirm with the
-  authenticated GET (<a href="#payment-get">payment</a> / <a href="#payout-get">payout</a>), and
-  poll that same endpoint whenever an expected notification is missing.</li>
+  <li><strong>Failed deliveries are retried 3 times, 5 seconds apart.</strong> After that, an
+  automatic recovery job re-queues undelivered notifications <strong>every 10 minutes</strong>
+  (payments for 7 days, payouts for 30) — a temporary outage of your endpoint heals itself.</li>
+  <li><strong>The GET is the source of truth</strong> (<a href="#payment-get">payment</a> /
+  <a href="#payout-get">payout</a>): poll it whenever an expected notification is missing.</li>
 </ul>
+</div>
+<div class="codecol">
+<h4 style="margin-top:0">Verify the signature</h4>
+<div id="webhook-verify-samples"></div>
+</div>
+</div>
+
+<h3>Manual re-notification (payments)</h3>
+<p>If you need the <code>completed</code> webhook of a payment re-sent (e.g. your endpoint was down
+past the recovery window), you can request it yourself:</p>
+<pre><code>GET /v1.0/payment/notify/{id}/valid/{valid}
+
+{valid} = HMAC_SHA256({id}, your_private_token)   // hex</code></pre>
+<p>It only re-fires for successful orders from the last 3 months whose webhook was never
+acknowledged, and always answers an empty <code>200</code> — it never confirms whether the order
+exists.</p>
 
 <h3>Payer return (browser redirect)</h3>
 <p>After finishing (or abandoning) the hosted payment page, the payer's browser is redirected to
@@ -859,8 +914,8 @@ header has a dedicated code and a hint with a valid example timestamp:</p>
   "status": "failed",
   "error": {
     "code": "DATE_INVALID",
-    "message": "El header X-Date es obligatorio.",
-    "hint": "Envía el header X-Date en UTC ISO-8601 con Z. Ejemplo (ahora): 2026-07-17T14:20:30Z",
+    "message": "The X-Date header is required.",
+    "hint": "Send the X-Date header in UTC ISO-8601 with Z. Example (now): 2026-07-17T14:20:30Z",
     "example": "2026-07-17T14:20:30Z",
     "request_id": "…"
   }
@@ -902,13 +957,6 @@ delivery); or it answered too slowly.</p>
 <p><strong>Fix:</strong> register your URL, acknowledge with a fast empty <code>200</code>, and
 remember failed deliveries are retried automatically. Whenever in doubt, poll the authenticated
 GET — it is always the source of truth.</p>
-
-<h3><code>404</code> on list endpoints that "should" have data</h3>
-<p><strong>Cause:</strong> payout and wallet lists default to <strong>today only</strong> when
-no dates are sent — a bare <code>GET /v1.0/payout</code> returns 404 if there were no payouts
-today.</p>
-<p><strong>Fix:</strong> pass <code>start_date</code>/<code>end_date</code> explicitly for
-historical queries.</p>
 
 <h3>Browser shows "Network error: Failed to fetch"</h3>
 <p><strong>Cause:</strong> requests to the API from a browser page are subject to CORS — the
@@ -1435,7 +1483,7 @@ including the <code>redirect_url</code> where you must send your customer to pay
       ["payment", "string", true, "Id of the payment method to charge with — list the ones enabled for your account with <a href=\"#tools-methods\">GET /v1.0/payment-methods</a>.", "^[A-Za-z0-9]+$"],
       ["amount", "string | number", true, "Amount to charge. Decimal with up to 2 places; minimum <strong>5 VES</strong>.", "^\\d+(\\.\\d{1,2})?$"],
       ["email", "string", true, "Payer's email. Must be a valid address.", "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"],
-      ["order", "string", true, "Your unique order identifier, alphanumeric. Reusing an existing value returns <code>409</code>.", "^[a-zA-Z0-9]+$"],
+      ["order", "string", true, "Your unique order identifier — letters, digits and hyphens, up to 50 characters. Reusing an existing value returns <code>409</code>.", "^[a-zA-Z0-9-]{1,50}$"],
       ["subject", "string", true, "Description of the product or service.", "^[a-zA-Z0-9 ]+$"],
       ["document", "string", false, "Payer's identity document: type letter + digits (e.g. <code>V00000000</code>). Allowed types: V, E, J.", "^[VEJ]\\d{7,10}$"],
       ["phone", "string", false, "Payer's phone, format <code>04XXNNNNNNN</code> (prefixes 0412, 0414, 0416, 0422, 0424, 0426).", "^(0412|0414|0416|0422|0424|0426)\\d{7}$"],
@@ -1473,7 +1521,8 @@ including the <code>redirect_url</code> where you must send your customer to pay
     path: "/v1.0/payment",
     title: "List payment orders",
     desc: `Returns the payment orders of your account as an array of
-<a href="#payin">payment order objects</a>, newest first.
+<a href="#payin">payment order objects</a>, newest first. <strong>Without dates the range
+defaults to today only</strong>; an empty result is <code>200 []</code>.
 <p>For large volumes use <strong>keyset pagination</strong>: read the <code>X-Next-Cursor</code>
 response header and pass it back as <code>after_id</code> to fetch the next page. It is faster and
 stabler than <code>page</code> for deep listings.</p>`,
@@ -1532,7 +1581,7 @@ stabler than <code>page</code> for deep listings.</p>`,
 (the one you sent on <a href="#payment-create">Create</a>) instead of the Granve token.`,
     fieldsTitle: "Path parameters",
     fields: [
-      ["order", "string", true, "Your order identifier (e.g. <code>ORDER0001</code>).", "^[a-zA-Z0-9]+$"],
+      ["order", "string", true, "Your order identifier (e.g. <code>ORDER0001</code>).", "^[a-zA-Z0-9-]{1,50}$"],
     ],
     responses: `<h4>Response <code>200</code></h4>
 <p>The <a href="#payin">payment order object</a>.</p>
@@ -1563,7 +1612,7 @@ from the account's first 4 digits).</p>`,
       ["phone", "string", true, "Beneficiary's phone, 11 digits (prefixes 0412, 0414, 0416, 0422, 0424, 0426).", "^(0412|0414|0416|0422|0424|0426)\\d{7}$"],
       ["order", "string", true, "Your unique payout identifier — letters, numbers and hyphens, up to 99 characters. Reusing a value returns <code>409</code>.", "^[a-zA-Z0-9-]{1,99}$"],
       ["subject", "string", true, "Concept of the payout, 5–200 characters.", "^[a-zA-Z0-9 ]{5,200}$"],
-      ["amount", "integer", true, "Amount in VES, <strong>whole numbers only</strong> (no decimals), minimum 1.", "^[1-9]\\d*$"],
+      ["amount", "integer", true, "Amount in VES, <strong>whole numbers only</strong> — payouts are whole-VES by design (unlike PayIn, which accepts decimals). Minimum 1.", "^[1-9]\\d*$"],
       ["bank.name", "string", true, "Beneficiary's name, 3–50 characters.", "^[a-zA-Z0-9 ]{3,50}$"],
       ["bank.document", "string", true, "Identity document: type letter (V, E, J) + 7–10 digits (e.g. <code>V00000000</code>).", "^[VEJ]\\d{7,10}$"],
       ["bank.num", "string", true, "11-digit mobile number (Pago Móvil) or 20-digit account number (transfer).", "^((0412|0414|0416|0422|0424|0426)\\d{7}|\\d{20})$"],
@@ -1585,7 +1634,7 @@ from the account's first 4 digits).</p>`,
       },
     },
     responses: `<h4>Response <code>200</code></h4>
-<p>The <a href="#payout">payout object</a>, with <code>status = "register"</code>.</p>
+<p>The <a href="#payout">payout object</a>, with <code>status = "created"</code>.</p>
 <h4>Response <code>400</code> — validation / insufficient balance</h4>
 <pre><code>{
   "status": "failed",
@@ -1616,8 +1665,8 @@ from the account's first 4 digits).</p>`,
     desc: `Returns the payouts of your account as an array of <a href="#payout">payout objects</a>,
 newest first.
 <p><strong>Without dates the range defaults to today only</strong> — a bare
-<code>GET /v1.0/payout</code> returns <code>404</code> if there were no payouts today. For history,
-pass <code>start_date</code>/<code>end_date</code>; for deep listings use keyset pagination with
+<code>GET /v1.0/payout</code> returns <code>200 []</code> if there were no payouts today. For
+history, pass <code>start_date</code>/<code>end_date</code>; for deep listings use keyset pagination with
 <code>after_id</code> + the <code>X-Next-Cursor</code> header, exactly like
 <a href="#payment-list">PayIn List</a>.</p>`,
     fieldsTitle: "Query parameters",
@@ -1631,8 +1680,7 @@ pass <code>start_date</code>/<code>end_date</code>; for deep listings use keyset
     responses: `<h4>Response <code>200</code></h4>
 <p>JSON array of payout objects. Headers <code>X-Next-Cursor</code> (next page cursor) and
 <code>X-Total</code> (first page only).</p>
-<h4>Response <code>404</code></h4>
-<p>No payouts in the requested range.</p>`,
+`,
     query: [
       ["start_date", DATE_START],
       ["end_date", DATE_END],
@@ -1685,7 +1733,7 @@ identifier. Lookups cover the last <strong>180 days</strong>.`,
     desc: `Returns your current wallet balance (VES).`,
     responses: `<h4>Response <code>200</code></h4>
 <pre><code>{
-  "balance": 900.00,
+  "balance": "900.00",
   "currency": "VES"
 }</code></pre>
 <h4>Response <code>404</code></h4>
@@ -1699,7 +1747,8 @@ identifier. Lookups cover the last <strong>180 days</strong>.`,
     title: "List wallet movements",
     desc: `Returns the wallet movements of your account as an array of
 <a href="#wallet">movement objects</a>. <strong>Without dates the range defaults to today
-only</strong> — pass <code>start_date</code>/<code>end_date</code> for history.`,
+only</strong> (empty result = <code>200 []</code>) — pass
+<code>start_date</code>/<code>end_date</code> for history.`,
     fieldsTitle: "Query parameters",
     fields: [
       ["start_date", "date", false, "Filter start (<code>YYYY-MM-DD</code>). Default: today.", "^\\d{4}-\\d{2}-\\d{2}$"],
@@ -1711,8 +1760,7 @@ only</strong> — pass <code>start_date</code>/<code>end_date</code> for history
     responses: `<h4>Response <code>200</code></h4>
 <p>JSON array of movement objects. Headers <code>X-Page</code>, <code>X-Per-Page</code> and
 <code>X-Total</code>.</p>
-<h4>Response <code>404</code></h4>
-<p>No movements in the requested range.</p>`,
+`,
     query: [
       ["start_date", DATE_START],
       ["end_date", DATE_END],
@@ -1789,6 +1837,90 @@ versa. The catalog rarely changes; cache it and refresh on demand.`,
 ];
 
 /* ----------------------------------------------------------- rendering */
+const WEBHOOK_VERIFY = {
+  Bash: `# Verify a Granve webhook — X-Sign = HMAC-SHA256("{X-Date}.{raw_body}", private_token)
+DATE="$HTTP_X_DATE"; SIGN="$HTTP_X_SIGN"; RAW="$(cat)"   # raw body on stdin
+EXPECTED=$(printf '%s' "$DATE.$RAW" \\
+  | openssl dgst -sha256 -hmac "$PRIVATE_TOKEN" -hex | sed 's/^.* //')
+[ "$EXPECTED" = "$SIGN" ] && echo valid || echo invalid   # also reject if DATE > 5 min old`,
+  JavaScript: `const crypto = require("crypto");
+// req.rawBody must hold the EXACT bytes received (keep your body parser from re-encoding).
+function verify(req, privateToken) {
+  const date = req.headers["x-date"] || "";
+  const sign = req.headers["x-sign"] || "";
+  const fresh = Math.abs(Date.now() / 1000 - Date.parse(date) / 1000) <= 300;
+  const expected = crypto.createHmac("sha256", privateToken)
+    .update(date + "." + req.rawBody).digest("hex");
+  return fresh && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sign));
+}`,
+  Python: `import hmac, hashlib, time
+from datetime import datetime, timezone
+
+def verify(headers, raw_body, private_token):
+    date = headers.get("X-Date", "")
+    sign = headers.get("X-Sign", "")
+    ts = datetime.strptime(date, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
+    fresh = abs(time.time() - ts) <= 300
+    expected = hmac.new(private_token.encode(), f"{date}.{raw_body}".encode(),
+                        hashlib.sha256).hexdigest()
+    return fresh and hmac.compare_digest(expected, sign)`,
+  PHP: `$date = $_SERVER['HTTP_X_DATE'] ?? '';
+$sign = $_SERVER['HTTP_X_SIGN'] ?? '';
+$raw  = file_get_contents('php://input');   // the EXACT bytes received
+
+$valid = abs(time() - strtotime($date)) <= 300
+    && hash_equals(hash_hmac('sha256', $date . '.' . $raw, $your_private_token), $sign);`,
+  Go: `import (
+    "crypto/hmac"
+    "crypto/sha256"
+    "encoding/hex"
+    "time"
+)
+
+func verify(date, sign, rawBody, privateToken string) bool {
+    t, err := time.Parse(time.RFC3339, date)
+    if err != nil || time.Since(t).Abs() > 5*time.Minute {
+        return false
+    }
+    mac := hmac.New(sha256.New, []byte(privateToken))
+    mac.Write([]byte(date + "." + rawBody))
+    expected := hex.EncodeToString(mac.Sum(nil))
+    return hmac.Equal([]byte(expected), []byte(sign))
+}`,
+  Java: `import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.security.MessageDigest;
+import java.time.Instant;
+
+boolean verify(String date, String sign, String rawBody, String key) throws Exception {
+    if (Math.abs(Instant.now().getEpochSecond() - Instant.parse(date).getEpochSecond()) > 300)
+        return false;
+    Mac mac = Mac.getInstance("HmacSHA256");
+    mac.init(new SecretKeySpec(key.getBytes(), "HmacSHA256"));
+    byte[] raw = mac.doFinal((date + "." + rawBody).getBytes());
+    StringBuilder hex = new StringBuilder();
+    for (byte b : raw) hex.append(String.format("%02x", b));
+    return MessageDigest.isEqual(hex.toString().getBytes(), sign.getBytes());
+}`,
+  C: `/* cc verify.c -lcrypto */
+#include <openssl/hmac.h>
+#include <stdio.h>
+#include <string.h>
+
+int verify(const char *date, const char *sign,
+           const char *raw_body, const char *private_token) {
+    char data[8192];
+    snprintf(data, sizeof data, "%s.%s", date, raw_body);   /* X-Date . raw_body */
+
+    unsigned char *d = HMAC(EVP_sha256(), private_token, (int) strlen(private_token),
+        (const unsigned char *) data, strlen(data), NULL, NULL);
+
+    char expected[65];
+    for (int i = 0; i < 32; i++) sprintf(expected + i * 2, "%02x", d[i]);
+    return strcmp(expected, sign) == 0;   /* also reject if \`date\` is > 5 min old */
+}`,
+};
+
 function tabsHtml(id) {
   return `<div class="tabs" data-for="${id}">` +
     LANGS.map((l, i) => `<button class="${i === 0 ? "active" : ""}" data-lang="${l}">${l}</button>`).join("") +
@@ -1828,6 +1960,11 @@ function renderAllSamples() {
     path: "/v1.0/payment",
     body: CREATE_BODY,
   });
+  const wv = document.querySelector('.tabs[data-for="webhook-verify"]');
+  if (wv) {
+    const lang = wv.querySelector("button.active").dataset.lang;
+    $("#code-webhook-verify").textContent = WEBHOOK_VERIFY[lang] || WEBHOOK_VERIFY.PHP;
+  }
 }
 
 function fieldsTable(ep) {
@@ -1972,6 +2109,7 @@ ENDPOINTS.forEach(renderEndpoint);
 })();
 $("#auth-samples").innerHTML = tabsHtml("auth");
 $("#quickstart-samples").innerHTML = tabsHtml("quickstart");
+$("#webhook-verify-samples").innerHTML = tabsHtml("webhook-verify");
 renderAllSamples();
 
 // los <pre> scrollean horizontalmente: deben ser enfocables por teclado (a11y)
