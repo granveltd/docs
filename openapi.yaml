@@ -18,6 +18,24 @@ info:
     The API is designed around REST principles: predictable URLs, JSON request and response
     bodies, and standard HTTP status codes. All responses are JSON, including errors.
 
+    ## Quickstart
+
+    Every integration follows the same path — build against **Sandbox**, then switch the base
+    URL to go live (your credentials are the same in both environments):
+
+    1. **Get your credentials** — a public token (`Authorization` header) and a private token
+       (signing key). Keep the private token server-side, always.
+    2. **Point to Sandbox** — `https://api-sandbox.granve.com`. Nothing there touches real money.
+    3. **Sign a request** — send `Authorization`, `X-Date` and `X-Sign` (see Authentication).
+    4. **Create a payment order** — `POST /v1.0/payment`; the response contains the `token`
+       (your permanent handle) and the `redirect_url`.
+    5. **Redirect your customer** to `redirect_url` — the hosted page collects and validates the
+       payment. In sandbox, a reference ending in `00` simulates a successful payment.
+    6. **Confirm the result** — Granve calls your registered webhook and sends the customer back
+       to your return URL. Always confirm by querying the API, never by the redirect alone.
+    7. **Go live** — switch the base URL to `https://api.granve.com`. Register your production
+       webhook/return URLs (they are per-environment) and check `"livemode": true` in responses.
+
     ## Endpoint
 
     | Environment  | Base URL                          |
