@@ -148,6 +148,12 @@ paths:
         When the order reaches a terminal state, the result is delivered once to the webhook
         URL registered for your account, and the payer is redirected to your registered
         return URL with `?id=…&status=…&order=…` appended.
+
+        Idempotency on timeout: your `order` is the idempotency key. If this request times out
+        with no response, retry with the same `order`. A `409` means the first request already
+        created it (never a duplicate) — recover it with `GET /v1.0/payment/order/{order}` to
+        read its `id` and `redirect_url`. Never generate a new `order` for a retry: that is how
+        double charges happen.
       parameters:
         - $ref: "#/components/parameters/HeaderAuthorization"
         - $ref: "#/components/parameters/HeaderDate"
@@ -177,7 +183,10 @@ paths:
                   description: "Your unique order identifier — letters, digits and hyphens, up to 50 characters. Reusing an existing value returns 409."
                 subject:
                   type: string
-                  description: "Description of the product or service."
+                  minLength: 2
+                  maxLength: 100
+                  pattern: '^[a-zA-Z0-9 ]{2,100}$'
+                  description: "Description of the product or service — 2-100 characters: letters, digits and spaces. Accents are folded to plain letters (a-acute to a, enye to n); any other character is removed."
                 document:
                   type: string
                   pattern: '^[VEJ][0-9]{7,10}$'
@@ -346,6 +355,31 @@ paths:
         "500":
           description: Internal server error.
 
+  /v1.0/payment/notify/{id}/valid/{valid}:
+    get:
+      tags: [Payment (PayIn)]
+      summary: Re-send webhook (manual)
+      description: |
+        Manually re-sends the `completed` webhook of a payment whose delivery was never
+        acknowledged. Self-authenticated by `{valid}` — it does not use the standard
+        `Authorization`/`X-Date`/`X-Sign` headers. Only re-fires for successful orders from
+        the last 3 months whose webhook is still pending; always answers an empty 200 and
+        never reveals whether the order exists.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: "The payment order id (pi_...)."
+          schema: { type: string }
+        - name: valid
+          in: path
+          required: true
+          description: "HMAC_SHA256(id, your_private_token), hex."
+          schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+      responses:
+        "200":
+          description: Always returned (empty body), whether or not anything was re-sent.
+
   /v1.0/payout:
     post:
       tags: [Payment (PayOut)]
@@ -357,6 +391,11 @@ paths:
         Pago Móvil (`bank.code` required), a 20-digit account number selects bank
         transfer (`bank.type` required; the bank is taken from the account's first
         4 digits).
+
+        Idempotency on timeout: your `order` is the idempotency key. If this request times
+        out, retry with the same `order` — a `409` means the first request already ran and
+        your wallet was debited only once. Recover it with `GET /v1.0/payout/order/{order}`.
+        Never generate a new `order` for a retry: that is how double withdrawals happen.
       parameters:
         - $ref: "#/components/parameters/HeaderAuthorization"
         - $ref: "#/components/parameters/HeaderDate"
@@ -385,6 +424,8 @@ paths:
                   type: string
                   minLength: 5
                   maxLength: 200
+                  pattern: '^[a-zA-Z0-9 ]{5,200}$'
+                  description: "Concept of the payout — 5-200 characters: letters, digits and spaces. Accents are folded to plain letters; any other character is removed."
                 amount:
                   type: integer
                   minimum: 1
@@ -822,6 +863,11 @@ components:
           description: "Public identifier of the payment order (pi_…)."
         status:
           type: string
+          description: >-
+            The last five values (voided, refunded, partially_refunded, disputed,
+            chargeback) are post-payment states set by Granve operations (compliance,
+            support or the admin panel), never by the payment flow — treat them as
+            read-only signals that can appear on an already completed order.
           enum: [created, pending, processing, under_review, retrying, completed,
                  declined, attempts_exhausted, failed, canceled_user, canceled_system,
                  expired, voided, refunded, partially_refunded, disputed, chargeback]
