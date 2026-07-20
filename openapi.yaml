@@ -6,9 +6,9 @@ servers:
     description: Sandbox
 info:
   title: Granve API
-  version: "1.0.0"
+  version: "1.1.0"
   contact:
-    email: contacto@granve.com
+    email: hola@granve.com
   description: |
     ## Introduction
 
@@ -24,11 +24,22 @@ info:
     URL to go live (your credentials are the same in both environments):
 
     1. **Get your credentials** — a public token (`Authorization` header) and a private token
-       (signing key). Keep the private token server-side, always.
+       (signing key). ⚠ **The private token is a server-side secret** — anyone who reads it can
+       sign requests as you:
+       - ✗ never anywhere the browser can get it — page source, JavaScript bundles, a config
+         endpoint, cookies or storage — nor sent from it by *any* mechanism (`fetch()`, XHR,
+         WebSockets, form posts or whatever comes next);
+       - ✗ never inside a mobile or desktop app (extracting it from the binary takes minutes);
+       - ✓ always **your backend → Granve API**: the customer's browser talks to your server,
+         and your server makes the signed call.
+
+       Exposing the token in public code is a security vulnerability on your side and your
+       responsibility as an integrator. Suspect a leak? Request an immediate rotation of
+       your keys.
     2. **Point to Sandbox** — `https://api-sandbox.granve.com`. Nothing there touches real money.
     3. **Sign a request** — send `Authorization`, `X-Date` and `X-Sign` (see Authentication).
-    4. **Create a payment order** — `POST /v1.0/payment`; the response contains the `token`
-       (your permanent handle) and the `redirect_url`.
+    4. **Create a payment order** — `POST /v1.0/payment`; the response contains the `id`
+       (your permanent handle, `pi_…`) and the `redirect_url`.
     5. **Redirect your customer** to `redirect_url` — the hosted page collects and validates the
        payment. In sandbox, a reference ending in `00` simulates a successful payment.
     6. **Confirm the result** — Granve calls your registered webhook and sends the customer back
@@ -36,7 +47,7 @@ info:
     7. **Go live** — switch the base URL to `https://api.granve.com`. Register your production
        webhook/return URLs (they are per-environment) and check `"livemode": true` in responses.
 
-    ## Endpoint
+    ## Environments
 
     | Environment  | Base URL                          |
     |--------------|-----------------------------------|
@@ -61,6 +72,15 @@ info:
 
     An invalid or expired `X-Date` returns `401` with `error.code = "DATE_INVALID"`.
 
+    ## Testing
+
+    The sandbox at `https://api-sandbox.granve.com` is a fully isolated environment:
+    your same credentials work on both environments — only the base URL changes.
+    Nothing in sandbox touches real money. On the sandbox payment page, the outcome
+    is decided by the LAST TWO DIGITS of the reference you type: `00` = payment
+    confirmed (order completed), `99` = bank cannot find it, `50` = amount mismatch
+    (rejected), anything else = bank unavailable (attempt fails; order stays pending, retry allowed).
+
     ## Errors
 
     Every error body follows the same envelope:
@@ -71,24 +91,23 @@ info:
 
     ## Webhooks & return URL
 
-    Webhook and return URLs are **registered per account** (not per request).
-    When a payment order reaches a terminal state (`completed`, `attempts_exhausted`,
-    `expired`, `canceled_user`) Granve sends **one** `POST` to your webhook URL with
-    `token`, `status` and `order` both as query string and as JSON body. Acknowledge
-    with any `2xx`; failed deliveries are retried up to 3 times. The webhook is not
-    signed — always confirm via `GET /v1.0/payment/{token}` before delivering goods.
-    The payer's browser is redirected to your return URL with the same parameters.
-    For payouts, an optional per-request `urlnotify` receives `{"token": "<payout id>"}`
-    when the payout is processed.
+    **One action, every object.** When an object reaches its final state, Granve sends a
+    `POST` to the webhook URL registered for your account — same payload, acknowledgement
+    and retry policy for every object type; only the trigger depends on the object:
+    a **payment order** (`pi_…`) notifies on reaching a terminal state (`completed`,
+    `attempts_exhausted`, `expired`, `canceled_user`); a **payout** (`po_…`) notifies when
+    it is processed (`success`, `denied`).
 
-    ## Testing
+    The payload is always `id`, `status` and `order`, appended as query string and repeated
+    as JSON body. Delivery rules (identical for all): one delivery per `id`+`status`;
+    acknowledge with HTTP `200` exactly; failed deliveries retried up to 3 times with a
+    short backoff, then a manual re-notification can be requested; the notification is not
+    signed — always confirm via the authenticated GET, and poll it whenever a notification
+    is missing. (Legacy: accounts without a registered webhook URL fall back, for payouts
+    only, to the deprecated per-request `urlnotify` field.)
 
-    The sandbox at `https://api-sandbox.granve.com` is a fully isolated environment:
-    your same credentials work on both environments — only the base URL changes.
-    Nothing in sandbox touches real money. On the sandbox payment page, the outcome
-    is decided by the LAST TWO DIGITS of the reference you type: `00` = payment
-    confirmed (order completed), `99` = bank cannot find it, `50` = amount mismatch
-    (rejected), anything else = bank unavailable (attempt fails; order stays pending, retry allowed).
+    The payer's browser is also redirected to your registered return URL with the same
+    three parameters. UX signal only.
 
 tags:
   - name: Payment (PayIn)
@@ -97,7 +116,6 @@ tags:
     description: Send money from your wallet to a beneficiary (Pago Móvil or transfer).
   - name: Wallet
     description: Balance and ledger movements of your Granve wallet.
-
 paths:
   /v1.0/payment:
     post:
@@ -105,12 +123,12 @@ paths:
       summary: Create
       description: |
         Creates a payment order and returns the payment order object, including the
-        `redirect_url` where the customer must be sent to pay. Store the returned `token`:
+        `redirect_url` where the customer must be sent to pay. Store the returned `id`:
         it identifies the order in every later query.
 
         When the order reaches a terminal state, the result is delivered once to the webhook
         URL registered for your account, and the payer is redirected to your registered
-        return URL with `?token=…&status=…&order=…` appended.
+        return URL with `?id=…&status=…&order=…` appended.
       parameters:
         - $ref: "#/components/parameters/HeaderAuthorization"
         - $ref: "#/components/parameters/HeaderDate"
@@ -247,16 +265,16 @@ paths:
         "500":
           description: Internal server error.
 
-  /v1.0/payment/{token}:
+  /v1.0/payment/{id}:
     get:
       tags: [Payment (PayIn)]
       summary: Get
-      description: Retrieves one payment order using the `token` returned by Create.
+      description: Retrieves one payment order using the `id` returned by Create.
       parameters:
-        - name: token
+        - name: id
           in: path
           required: true
-          description: "The payment order token."
+          description: "The payment order id (pi_…). Legacy op_… ids remain valid."
           schema: { type: string }
         - $ref: "#/components/parameters/HeaderAuthorization"
         - $ref: "#/components/parameters/HeaderDate"
@@ -282,7 +300,7 @@ paths:
     get:
       tags: [Payment (PayIn)]
       summary: Get by order
-      description: Retrieves one payment order using your own `order` identifier instead of the Granve token.
+      description: Retrieves one payment order using your own `order` identifier instead of the Granve id.
       parameters:
         - name: order
           in: path
@@ -376,6 +394,8 @@ paths:
                   type: string
                   format: uri
                   maxLength: 255
+                  deprecated: true
+                  description: "Deprecated — notifications go to your registered webhook URL; this per-request URL is only a fallback when the account has none registered."
                 additional_parameters:
                   type: object
                   additionalProperties: true
@@ -658,7 +678,7 @@ components:
       properties:
         id:
           type: string
-          description: "Public identifier of the payout."
+          description: "Public identifier of the payout (po_…; legacy payouts used numeric ids)."
         status:
           type: string
           enum: [register, processing, success, denied, rejected, to-liquidate, liquidated]
@@ -713,9 +733,9 @@ components:
     PaymentOrder:
       type: object
       properties:
-        token:
+        id:
           type: string
-          description: "Public identifier of the payment order (op_…)."
+          description: "Public identifier of the payment order (pi_…; legacy orders use op_…)."
         status:
           type: string
           enum: [created, pending, processing, under_review, retrying, completed,
@@ -768,10 +788,10 @@ components:
   examples:
     PaymentOrderExample:
       value:
-        token: "op_00000000000000000000000000000000"
+        id: "pi_00000000000000000000000000000000"
         status: "pending"
         created_at: "2026-01-01 00:00:00"
-        redirect_url: "{base_url}/{payment_method}/op_00000000000000000000000000000000?signature=…"
+        redirect_url: "{base_url}/{payment_method}/pi_00000000000000000000000000000000?signature=…"
         commerce:
           order: "ORDER0001"
           subject: "Lorem ipsum dolor sit"
