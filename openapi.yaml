@@ -387,7 +387,7 @@ paths:
                       description: "11-digit mobile (Pago Móvil) or 20-digit account (transfer)."
                     code:
                       type: string
-                      description: "Bank code — required for Pago Móvil. One of the codes 0102–0191."
+                      description: "Bank code — required for Pago Móvil. Any code returned by GET /v1.0/banks (Tools)."
                     type:
                       type: string
                       enum: [A, C]
@@ -655,18 +655,44 @@ paths:
                       type: string
                       enum: [mobile_payment, bank_transfer, card]
                     currency: { type: string }
-                    bank:
-                      type: object
-                      properties:
-                        name: { type: string }
-                        code: { type: string }
               example:
                 - id: "LOREMIPSUMP2C"
                   name: "Lorem Ipsum"
                   description: "Lorem ipsum dolor sit amet"
                   type: "mobile_payment"
                   currency: "VES"
-                  bank: { name: "Lorem Ipsum Bank", code: "0000" }
+        "401":
+          $ref: "#/components/responses/AuthError"
+
+  /v1.0/banks:
+    get:
+      tags: [Tools]
+      summary: List accepted banks
+      description: |
+        Returns the bank catalog accepted by the API. Every `code` is a valid value for
+        `bank.code` on Create a payout and for `payer.bank_code` on Create a payment
+        order — and vice versa. The catalog rarely changes; cache it.
+      parameters:
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      responses:
+        "200":
+          description: One object per accepted bank, ordered by code.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    code: { type: string }
+                    name: { type: string }
+              example:
+                - code: "0102"
+                  name: "BANCO DE VENEZUELA"
+                - code: "0104"
+                  name: "BANCO VENEZOLANO DE CREDITO"
         "401":
           $ref: "#/components/responses/AuthError"
 
