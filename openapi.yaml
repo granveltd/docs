@@ -67,8 +67,10 @@ info:
 
     The sandbox at `https://api-sandbox.granve.com` is a fully isolated environment:
     your same credentials work on both environments — only the base URL changes.
-    Nothing in sandbox touches real money. Simulated bank confirmations (magic test
-    references) are coming soon; until then sandbox orders stay pending until expiry.
+    Nothing in sandbox touches real money. On the sandbox payment page, the outcome
+    is decided by the LAST TWO DIGITS of the reference you type: `00` = payment
+    confirmed (order completed), `99` = bank cannot find it, `50` = amount mismatch
+    (rejected), anything else = bank unavailable (attempt fails; order stays pending, retry allowed).
 
 tags:
   - name: Payment (PayIn)
