@@ -6,7 +6,7 @@ servers:
     description: Sandbox
 info:
   title: Granve API
-  version: "1.2.0"
+  version: "1.0.0"
   contact:
     email: hola@granve.com
   description: |
