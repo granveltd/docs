@@ -274,7 +274,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: "The payment order id (pi_…). Legacy op_… ids remain valid."
+          description: "The payment order id (pi_…)."
           schema: { type: string }
         - $ref: "#/components/parameters/HeaderAuthorization"
         - $ref: "#/components/parameters/HeaderDate"
@@ -678,7 +678,7 @@ components:
       properties:
         id:
           type: string
-          description: "Public identifier of the payout (po_…; legacy payouts used numeric ids)."
+          description: "Public identifier of the payout (po_…)."
         status:
           type: string
           enum: [register, processing, success, denied, rejected, to-liquidate, liquidated]
@@ -735,7 +735,7 @@ components:
       properties:
         id:
           type: string
-          description: "Public identifier of the payment order (pi_…; legacy orders use op_…)."
+          description: "Public identifier of the payment order (pi_…)."
         status:
           type: string
           enum: [created, pending, processing, under_review, retrying, completed,
