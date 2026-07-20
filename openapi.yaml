@@ -18,6 +18,13 @@ info:
     The API is designed around REST principles: predictable URLs, JSON request and response
     bodies, and standard HTTP status codes. All responses are JSON, including errors.
 
+    Conventions: lists return 200 with an empty array when nothing matches (404 is
+    reserved for missing individual resources) and default to today only when no dates
+    are sent. Monetary amounts in responses are strings with two decimals ("100.00") —
+    parse with a decimal type, never float. Response timestamps use `YYYY-MM-DD HH:MM:SS`
+    in America/Caracas time (UTC−4, no DST); the `X-Date` request header, in contrast, must
+    be UTC.
+
     ## Quickstart
 
     Every integration follows the same path — build against **Sandbox**, then switch the base
@@ -81,6 +88,11 @@ info:
     confirmed (order completed), `99` = bank cannot find it, `50` = amount mismatch
     (rejected), anything else = bank unavailable (attempt fails; order stays pending, retry allowed).
 
+    Payouts are simulated too: the sandbox wallet is automatically topped up with test
+    balance, and the bank result is decided by the last two digits of the amount —
+    `99` = declined (wallet refunded, webhook fires), `50` = stays in created (test
+    polling), anything else = completed in ~10 seconds (webhook fires).
+
     ## Errors
 
     Every error body follows the same envelope:
@@ -96,14 +108,20 @@ info:
     and retry policy for every object type; only the trigger depends on the object:
     a **payment order** (`pi_…`) notifies on reaching a terminal state (`completed`,
     `attempts_exhausted`, `expired`, `canceled_user`); a **payout** (`po_…`) notifies when
-    it is processed (`success`, `denied`).
+    it is processed (`completed`, `declined`).
 
-    The payload is always `id`, `status` and `order`, appended as query string and repeated
-    as JSON body. Delivery rules (identical for all): one delivery per `id`+`status`;
-    acknowledge with HTTP `200` exactly; failed deliveries retried up to 3 times with a
-    short backoff, then a manual re-notification can be requested; the notification is not
-    signed — always confirm via the authenticated GET, and poll it whenever a notification
-    is missing.
+    The payload is `id`, `status` and `order` (query string + JSON body) plus `livemode`
+    (body only). Every delivery is signed over its body: headers `X-Date` (UTC ISO-8601 Z)
+    and `X-Sign` = HMAC_SHA256(X-Date + "." + raw_body, your_private_token). Signing the
+    body (not just the timestamp) means a captured signature cannot be reused with a
+    different payload — recompute over the received X-Date and the exact raw body,
+    constant-time compare, reject if older than 5 minutes. Delivery rules (identical for all): one delivery per `id`+`status`;
+    acknowledge with HTTP `200` exactly; failed deliveries retried 3 times, 5 s apart,
+    then an automatic recovery job re-queues undelivered notifications every 10 minutes
+    (payments 7 days, payouts 30). Manual re-notification (payments):
+    `GET /v1.0/payment/notify/{id}/valid/{valid}` with `{valid}` =
+    HMAC_SHA256(id, your_private_token). The authenticated GET remains the source of
+    truth.
 
     The payer's browser is also redirected to your registered return URL with the same
     three parameters. UX signal only.
@@ -155,8 +173,8 @@ paths:
                   description: "Payer's email."
                 order:
                   type: string
-                  pattern: '^[a-zA-Z0-9]+$'
-                  description: "Your unique order identifier, alphanumeric. Reusing an existing value returns 409."
+                  pattern: '^[a-zA-Z0-9-]{1,50}$'
+                  description: "Your unique order identifier — letters, digits and hyphens, up to 50 characters. Reusing an existing value returns 409."
                 subject:
                   type: string
                   description: "Description of the product or service."
@@ -407,7 +425,7 @@ paths:
                 code: "0102"
       responses:
         "200":
-          description: Payout created (`status = register`).
+          description: Payout created (`status = created`).
           content:
             application/json:
               schema:
@@ -426,7 +444,7 @@ paths:
       summary: List
       description: |
         Returns the payouts of your account, newest first. **Without dates the range
-        defaults to today only** (404 if there were no payouts today). Keyset
+        defaults to today only** (empty result = 200 []). Keyset
         pagination via `after_id` + `X-Next-Cursor`, like PayIn List.
       parameters:
         - $ref: "#/components/parameters/HeaderAuthorization"
@@ -748,7 +766,7 @@ components:
           description: "Public identifier of the payout (po_…)."
         status:
           type: string
-          enum: [register, processing, success, denied, rejected, to-liquidate, liquidated]
+          enum: [created, processing, completed, declined, rejected, settlement_pending, settled]
         created_at:
           type: string
         commerce:
@@ -785,7 +803,7 @@ components:
       type: object
       properties:
         id: { type: string }
-        create_at: { type: string }
+        created_at: { type: string }
         type:
           type: string
           enum: [income, expense]
