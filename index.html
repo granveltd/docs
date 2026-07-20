@@ -303,6 +303,12 @@
         <a href="#wallet-get" data-kw="wallet get /v1.0/wallet/id movement by id"><span class="m get">GET</span>Get by id</a>
       </div>
     </div>
+    <div class="navgroup collapsed">
+      <button class="group-toggle" aria-expanded="false" type="button">Tools <span class="chev">▾</span></button>
+      <div class="group-items">
+        <a href="#tools-methods" data-kw="tools get /v1.0/payment-methods payment methods catalog enabled discover list bank type"><span class="m get">GET</span>Payment methods</a>
+      </div>
+    </div>
     <a href="#changelog" data-kw="changelog versions release history">Changelog</a>
     <p class="nav-empty" id="nav-empty" hidden>No matches — try another term.</p>
   </nav>
@@ -842,6 +848,11 @@ it). <code>balance</code> is the wallet balance right after this movement.</p>
 <section id="wallet-list"></section>
 <section id="wallet-get"></section>
 
+<h2 id="tools">Tools</h2>
+<p>Utility endpoints that support your integration.</p>
+
+<section id="tools-methods"></section>
+
 <h2 id="changelog">Changelog</h2>
 <table>
   <tr><th>Version</th><th>Date</th><th>Changes</th></tr>
@@ -1314,7 +1325,7 @@ including the <code>redirect_url</code> where you must send your customer to pay
 <a href="#webhooks">Webhooks &amp; return URL</a>.</p>`,
     fieldsTitle: "Body parameters",
     fields: [
-      ["payment", "string", true, "Token of the payment method to charge with, from the methods enabled for your account (provided during onboarding).", "^[A-Za-z0-9]+$"],
+      ["payment", "string", true, "Id of the payment method to charge with — list the ones enabled for your account with <a href=\"#tools-methods\">GET /v1.0/payment-methods</a>.", "^[A-Za-z0-9]+$"],
       ["amount", "string | number", true, "Amount to charge. Decimal with up to 2 places; minimum <strong>5 VES</strong>.", "^\\d+(\\.\\d{1,2})?$"],
       ["email", "string", true, "Payer's email. Must be a valid address.", "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"],
       ["order", "string", true, "Your unique order identifier, alphanumeric. Reusing an existing value returns <code>409</code>.", "^[a-zA-Z0-9]+$"],
@@ -1621,6 +1632,35 @@ only</strong> — pass <code>start_date</code>/<code>end_date</code> for history
 <p>Unknown movement id.</p>`,
     pathParams: [["id", "1000000000000002"]],
     tryit: { path: true },
+  },
+  {
+    id: "tools-methods",
+    method: "GET",
+    path: "/v1.0/payment-methods",
+    title: "List your payment methods",
+    desc: `Returns the payment methods enabled for your account. Every <code>id</code> in this
+list is a valid value for the <code>payment</code> field of
+<a href="#payment-create">Create a payment order</a> — and vice versa: if it is not listed
+here, Create will reject it. The catalog rarely changes; cache it and refresh on demand.`,
+    responses: `<h4>Response <code>200</code></h4>
+<p>JSON array — one object per enabled method. An empty array means no methods are enabled
+for your account yet.</p>
+<pre><code>[
+  {
+    "id": "LOREMIPSUMP2C",
+    "name": "Lorem Ipsum",
+    "description": "Lorem ipsum dolor sit amet",
+    "type": "mobile_payment",
+    "currency": "VES",
+    "bank": {
+      "name": "Lorem Ipsum Bank",
+      "code": "0000"
+    }
+  }
+]</code></pre>
+<p><code>type</code> is one of <code>mobile_payment</code>, <code>bank_transfer</code> or
+<code>card</code>.</p>`,
+    tryit: {},
   },
 ];
 
