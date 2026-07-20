@@ -116,6 +116,8 @@ tags:
     description: Send money from your wallet to a beneficiary (Pago Móvil or transfer).
   - name: Wallet
     description: Balance and ledger movements of your Granve wallet.
+  - name: Tools
+    description: Utility endpoints that support your integration.
 paths:
   /v1.0/payment:
     post:
@@ -143,7 +145,7 @@ paths:
               properties:
                 payment:
                   type: string
-                  description: "Token of the payment method to charge with, from the methods enabled for your account (provided during onboarding)."
+                  description: "Id of the payment method to charge with — list the ones enabled for your account with GET /v1.0/payment-methods (Tools)."
                 amount:
                   type: string
                   pattern: '^[0-9]+(\.[0-9]{1,2})?$'
@@ -620,6 +622,53 @@ paths:
           $ref: "#/components/responses/AuthError"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  /v1.0/payment-methods:
+    get:
+      tags: [Tools]
+      summary: List your payment methods
+      description: |
+        Returns the payment methods enabled for your account. Every `id` in this list is a
+        valid value for the `payment` field of Create a payment order — and vice versa. The
+        catalog rarely changes; cache it and refresh on demand. An empty array means no
+        methods are enabled for the account yet.
+      parameters:
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      responses:
+        "200":
+          description: One object per enabled method.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      description: "Value to send as `payment` on Create."
+                    name: { type: string }
+                    description: { type: string }
+                    type:
+                      type: string
+                      enum: [mobile_payment, bank_transfer, card]
+                    currency: { type: string }
+                    bank:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        code: { type: string }
+              example:
+                - id: "LOREMIPSUMP2C"
+                  name: "Lorem Ipsum"
+                  description: "Lorem ipsum dolor sit amet"
+                  type: "mobile_payment"
+                  currency: "VES"
+                  bank: { name: "Lorem Ipsum Bank", code: "0000" }
+        "401":
+          $ref: "#/components/responses/AuthError"
 
 components:
   parameters:
