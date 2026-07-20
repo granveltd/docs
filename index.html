@@ -6,7 +6,7 @@
 <title>Granve API — Documentation</title>
 <meta name="description" content="Granve REST API documentation — create payment orders, query transactions and test every endpoint live from your browser.">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.granve.com https://api-sandbox.granve.com; base-uri 'none'; form-action 'none'">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230969da'/%3E%3Ctext x='32' y='45' font-size='38' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EG%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232d2d5b'/%3E%3Ctext x='32' y='45' font-size='38' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EG%3C/text%3E%3C/svg%3E">
 <style>
   :root {
     color-scheme: light dark;
@@ -124,9 +124,9 @@
   #sidebar nav a:hover { color: var(--fg); text-decoration: none; background: var(--border); }
   .group-toggle {
     display: flex; align-items: center; justify-content: space-between; width: 100%;
-    margin: 12px 0 2px; padding: 4px 18px; border: none; background: none; cursor: pointer;
-    font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--fg2);
-    font-weight: 600; font-family: inherit; text-align: left;
+    margin: 2px 0; padding: 5px 18px 5px 15px; border: none; background: none; cursor: pointer;
+    font-size: 14px; color: var(--fg2); border-left: 3px solid transparent;
+    font-weight: 400; font-family: inherit; text-align: left;
   }
   .group-toggle:hover { color: var(--fg); }
   .nav-label {
@@ -281,9 +281,7 @@
     <a href="#authentication" data-kw="authentication auth headers authorization bearer x-sign x-date sign date hmac sha256 signature token">Authentication</a>
     <a href="#testing" data-kw="testing sandbox simulate test keys magic references">Testing (sandbox)</a>
     <a href="#console-anchor" data-kw="console try it run live credentials tokens execute">API console (try it)</a>
-    <span class="nav-label">Reference</span>
-    <a href="#errors" data-kw="errors validation invalid_request_error api_error date_invalid 400 401 404 409 failed">Errors</a>
-    <a href="#webhooks" data-kw="webhooks notification callback return url redirect terminal retry">Webhooks &amp; return URL</a>
+    <span class="nav-label">API</span>
     <div class="navgroup collapsed">
       <button class="group-toggle" aria-expanded="false" type="button">Payment (PayIn) <span class="chev">▾</span></button>
       <div class="group-items">
@@ -317,6 +315,10 @@
         <a href="#tools-banks" data-kw="tools get /v1.0/banks bank codes catalog pago movil transfer sudeban list"><span class="m get">GET</span>Banks</a>
       </div>
     </div>
+    <span class="nav-label">Resources</span>
+    <a href="#webhooks" data-kw="webhooks notification callback return url redirect terminal retry">Webhooks &amp; return URL</a>
+    <a href="#errors" data-kw="errors validation invalid_request_error api_error date_invalid 400 401 404 409 failed">Errors</a>
+    <a href="#troubleshooting" data-kw="troubleshooting common issues failures 401 date_invalid signature clock cors debug">Troubleshooting</a>
     <a href="#changelog" data-kw="changelog versions release history">Changelog</a>
     <p class="nav-empty" id="nav-empty" hidden>No matches — try another term.</p>
   </nav>
@@ -597,88 +599,6 @@ a unique bank reference, so concurrent tests by different integrators never coll
 with a network error, the API host most likely does not allow this page's origin in its CORS
 configuration (<code>CORS_ALLOWED_ORIGINS</code>).</p>
 
-<h2 id="errors">Errors</h2>
-<p>The HTTP status code is the primary signal (see the <a href="#introduction">status table</a>).
-Every error body follows the same envelope:</p>
-<pre><code>{
-  "status": "failed",
-  "error": {
-    "type": "invalid_request_error",
-    "message": {
-      "amount": "must be at least 5 VES",
-      "order": "required"
-    }
-  }
-}</code></pre>
-<table>
-  <tr><th>error.type</th><th>Meaning</th></tr>
-  <tr><td><code>invalid_request_error</code></td><td>Your request failed validation — <code>error.message</code> lists each invalid field and the reason. Fix the request; do not retry as-is.</td></tr>
-  <tr><td><code>api_error</code></td><td>Something failed on Granve's side while processing a valid request. Safe to retry with backoff.</td></tr>
-</table>
-<p>Authentication failures return <code>401</code>. A missing or invalid <code>X-Date</code>
-header has a dedicated code and a hint with a valid example timestamp:</p>
-<pre><code id="code-dateinvalid">{
-  "status": "failed",
-  "error": {
-    "code": "DATE_INVALID",
-    "message": "El header X-Date es obligatorio.",
-    "hint": "Envía el header X-Date en UTC ISO-8601 con Z. Ejemplo (ahora): 2026-07-17T14:20:30Z",
-    "example": "2026-07-17T14:20:30Z",
-    "request_id": "…"
-  }
-}</code></pre>
-<p>Lookups that match nothing return <code>404</code> with
-<code>{"status": "failed", "error": {"message": "not found"}}</code>.</p>
-
-<h2 id="webhooks">Webhooks &amp; return URL</h2>
-<p><strong>One action, every object.</strong> When an object reaches its final state, Granve sends
-a <code>POST</code> to the <strong>webhook URL registered for your account</strong>. The payload,
-the acknowledgement rule and the retry policy are identical for every object type — the only
-thing that depends on the object is <em>when</em> it fires:</p>
-
-<table>
-  <tr><th>Object</th><th><code>id</code></th><th>Fires when</th><th><code>status</code> arrives as</th></tr>
-  <tr><td><a href="#payin">Payment order</a></td><td><code>pi_…</code></td><td>The order reaches a terminal state</td><td><code>completed</code>, <code>attempts_exhausted</code>, <code>expired</code>, <code>canceled_user</code></td></tr>
-  <tr><td><a href="#payout">Payout</a></td><td><code>po_…</code></td><td>The payout is processed by the bank</td><td><code>success</code>, <code>denied</code></td></tr>
-</table>
-
-<p>Every notification carries the same three parameters, appended to the URL as a query string
-<em>and</em> repeated as the JSON body:</p>
-
-<table>
-  <tr><th>Parameter</th><th>Value</th></tr>
-  <tr><td><code>id</code></td><td>Identifier of the object (<code>pi_…</code> / <code>po_…</code>).</td></tr>
-  <tr><td><code>status</code></td><td>Status at notification time (see the table above).</td></tr>
-  <tr><td><code>order</code></td><td>Your own identifier, exactly as you sent it on Create.</td></tr>
-</table>
-
-<pre><code>POST https://your-webhook.example.com/granve?id=pi_000…&amp;status=completed&amp;order=ORDER0001
-Content-Type: application/json
-
-{
-  "id": "pi_00000000000000000000000000000000",
-  "status": "completed",
-  "order": "ORDER0001"
-}</code></pre>
-
-<h3>Delivery rules — the same for every notification</h3>
-<ul>
-  <li><strong>One delivery</strong> per <code>id</code> + <code>status</code> pair — never twice.</li>
-  <li><strong>Acknowledge with HTTP <code>200</code> exactly</strong> (an empty body is fine).
-  Anything else — including other <code>2xx</code> codes — counts as a failed delivery.</li>
-  <li><strong>Failed deliveries are retried up to 3 times</strong> with a short backoff; after
-  that, a manual re-notification can be requested.</li>
-  <li><strong>Never act on the notification alone.</strong> It is not signed — confirm with the
-  authenticated GET (<a href="#payment-get">payment</a> / <a href="#payout-get">payout</a>), and
-  poll that same endpoint whenever an expected notification is missing.</li>
-</ul>
-
-<h3>Payer return (browser redirect)</h3>
-<p>After finishing (or abandoning) the hosted payment page, the payer's browser is redirected to
-your <strong>registered return URL</strong> with the same three parameters appended:
-<code>?id=…&amp;status=…&amp;order=…</code>. This is a UX signal only — the webhook plus the
-authenticated query are the reliable channel.</p>
-
 <h2 id="payin">Payment (PayIn)</h2>
 <p>A <em>payment order</em> represents a charge to your customer. You create it, redirect the customer
 to the returned <code>redirect_url</code> (the hosted payment page), and the customer pays through the
@@ -691,6 +611,12 @@ for your account, and the customer is sent back to your registered return URL.</
 <div class="note"><strong><code>redirect_url</code> is opaque:</strong> its host follows the
 environment you called (production or sandbox) and its path depends on the payment method that will
 process the order. Always use the returned value <em>verbatim</em> — never build, modify or parse it.</div>
+<div class="note"><strong>Order lifetime:</strong> a payment order stays payable for
+<strong>6 hours</strong> after creation — if the payer has not completed it by then, it
+transitions to <code>expired</code> and the webhook fires. On the payment page the payer has
+<strong>3 validation attempts</strong>; after the third failed attempt the order becomes
+<code>attempts_exhausted</code> (webhook fires). Both are terminal: create a new order to
+retry.</div>
 <p><code>status</code> is one of:</p>
 <table>
   <tr><th>Status</th><th>Meaning</th></tr>
@@ -860,6 +786,137 @@ it). <code>balance</code> is the wallet balance right after this movement.</p>
 
 <section id="tools-banks"></section>
 
+<h2 id="webhooks">Webhooks &amp; return URL</h2>
+<p><strong>One action, every object.</strong> When an object reaches its final state, Granve sends
+a <code>POST</code> to the <strong>webhook URL registered for your account</strong>. The payload,
+the acknowledgement rule and the retry policy are identical for every object type — the only
+thing that depends on the object is <em>when</em> it fires:</p>
+
+<table>
+  <tr><th>Object</th><th><code>id</code></th><th>Fires when</th><th><code>status</code> arrives as</th></tr>
+  <tr><td><a href="#payin">Payment order</a></td><td><code>pi_…</code></td><td>The order reaches a terminal state</td><td><code>completed</code>, <code>attempts_exhausted</code>, <code>expired</code>, <code>canceled_user</code></td></tr>
+  <tr><td><a href="#payout">Payout</a></td><td><code>po_…</code></td><td>The payout is processed by the bank</td><td><code>success</code>, <code>denied</code></td></tr>
+</table>
+
+<p>Every notification carries the same three parameters, appended to the URL as a query string
+<em>and</em> repeated as the JSON body:</p>
+
+<table>
+  <tr><th>Parameter</th><th>Value</th></tr>
+  <tr><td><code>id</code></td><td>Identifier of the object (<code>pi_…</code> / <code>po_…</code>).</td></tr>
+  <tr><td><code>status</code></td><td>Status at notification time (see the table above).</td></tr>
+  <tr><td><code>order</code></td><td>Your own identifier, exactly as you sent it on Create.</td></tr>
+</table>
+
+<pre><code>POST https://your-webhook.example.com/granve?id=pi_000…&amp;status=completed&amp;order=ORDER0001
+Content-Type: application/json
+
+{
+  "id": "pi_00000000000000000000000000000000",
+  "status": "completed",
+  "order": "ORDER0001"
+}</code></pre>
+
+<h3>Delivery rules — the same for every notification</h3>
+<ul>
+  <li><strong>One delivery</strong> per <code>id</code> + <code>status</code> pair — never twice.</li>
+  <li><strong>Acknowledge with HTTP <code>200</code> exactly</strong> (an empty body is fine).
+  Anything else — including other <code>2xx</code> codes — counts as a failed delivery.</li>
+  <li><strong>Failed deliveries are retried up to 3 times</strong> with a short backoff; after
+  that, a manual re-notification can be requested.</li>
+  <li><strong>Never act on the notification alone.</strong> It is not signed — confirm with the
+  authenticated GET (<a href="#payment-get">payment</a> / <a href="#payout-get">payout</a>), and
+  poll that same endpoint whenever an expected notification is missing.</li>
+</ul>
+
+<h3>Payer return (browser redirect)</h3>
+<p>After finishing (or abandoning) the hosted payment page, the payer's browser is redirected to
+your <strong>registered return URL</strong> with the same three parameters appended:
+<code>?id=…&amp;status=…&amp;order=…</code>. This is a UX signal only — the webhook plus the
+authenticated query are the reliable channel.</p>
+
+<h2 id="errors">Errors</h2>
+<p>The HTTP status code is the primary signal (see the <a href="#introduction">status table</a>).
+Every error body follows the same envelope:</p>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "type": "invalid_request_error",
+    "message": {
+      "amount": "must be at least 5 VES",
+      "order": "required"
+    }
+  }
+}</code></pre>
+<table>
+  <tr><th>error.type</th><th>Meaning</th></tr>
+  <tr><td><code>invalid_request_error</code></td><td>Your request failed validation — <code>error.message</code> lists each invalid field and the reason. Fix the request; do not retry as-is.</td></tr>
+  <tr><td><code>api_error</code></td><td>Something failed on Granve's side while processing a valid request. Safe to retry with backoff.</td></tr>
+</table>
+<p>Authentication failures return <code>401</code>. A missing or invalid <code>X-Date</code>
+header has a dedicated code and a hint with a valid example timestamp:</p>
+<pre><code id="code-dateinvalid">{
+  "status": "failed",
+  "error": {
+    "code": "DATE_INVALID",
+    "message": "El header X-Date es obligatorio.",
+    "hint": "Envía el header X-Date en UTC ISO-8601 con Z. Ejemplo (ahora): 2026-07-17T14:20:30Z",
+    "example": "2026-07-17T14:20:30Z",
+    "request_id": "…"
+  }
+}</code></pre>
+<p>Lookups that match nothing return <code>404</code> with
+<code>{"status": "failed", "error": {"message": "not found"}}</code>.</p>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+<p>The failures integrators actually hit, with their causes and fixes.</p>
+
+<h3>401 with <code>error.code = "DATE_INVALID"</code></h3>
+<p><strong>Cause:</strong> the <code>X-Date</code> header is outside the ±5-minute window, or is
+not UTC ISO-8601 with the explicit <code>Z</code> suffix. The most common culprits: a server
+clock that has drifted, or sending local time instead of UTC.</p>
+<p><strong>Fix:</strong> sync your clock (NTP) and always generate the timestamp in UTC
+(<code>gmdate()</code>, <code>datetime.now(timezone.utc)</code>, <code>Date().toISOString()</code>).
+The error response includes a valid example timestamp of the current server time — compare it
+with yours.</p>
+
+<h3>401 with <code>sign</code> / <code>authorization</code> errors</h3>
+<p><strong>Cause:</strong> the usual signature mistakes — signing with the <em>public</em> token
+instead of the private one; signing something other than the exact <code>X-Date</code> value you
+sent; or a token that lost/gained characters when copied (both tokens are
+<strong>exactly 40 characters</strong> — a trailing space or newline breaks the signature
+silently).</p>
+<p><strong>Fix:</strong> the signature is <code>HMAC_SHA256(X-Date value, private_token)</code>,
+hex-encoded — nothing more. Trim whitespace from both tokens and verify their length is 40.</p>
+
+<h3>GET request answers <code>405</code> or an unexpected error</h3>
+<p><strong>Cause:</strong> your HTTP client silently turned the GET into a POST. The classic:
+<code>curl --data ''</code> forces POST even with a GET URL.</p>
+<p><strong>Fix:</strong> never pass a body on GET requests; with curl use <code>-X GET</code>
+and no <code>--data</code>.</p>
+
+<h3>Webhook never arrives</h3>
+<p><strong>Cause:</strong> no webhook URL registered for your account; or your endpoint did not
+answer <strong>HTTP 200 exactly</strong> (a <code>201</code>/<code>204</code> counts as a failed
+delivery); or it answered too slowly.</p>
+<p><strong>Fix:</strong> register your URL, acknowledge with a fast empty <code>200</code>, and
+remember failed deliveries are retried automatically. Whenever in doubt, poll the authenticated
+GET — it is always the source of truth.</p>
+
+<h3><code>404</code> on list endpoints that "should" have data</h3>
+<p><strong>Cause:</strong> payout and wallet lists default to <strong>today only</strong> when
+no dates are sent — a bare <code>GET /v1.0/payout</code> returns 404 if there were no payouts
+today.</p>
+<p><strong>Fix:</strong> pass <code>start_date</code>/<code>end_date</code> explicitly for
+historical queries.</p>
+
+<h3>Browser shows "Network error: Failed to fetch"</h3>
+<p><strong>Cause:</strong> requests to the API from a browser page are subject to CORS — the
+API only allows known origins. (Reminder: production integrations must call the API from your
+<strong>backend</strong>, never from a browser.)</p>
+<p><strong>Fix:</strong> use this documentation's <a href="#console-anchor">API console</a> for
+browser testing, and your server for everything else.</p>
+
 <h2 id="changelog">Changelog</h2>
 <table>
   <tr><th>Version</th><th>Date</th><th>Changes</th></tr>
@@ -980,6 +1037,19 @@ async function signWithPrivateKey(msg) {
     if (e.key === "Escape") { searchInput.value = ""; searchInput.dispatchEvent(new Event("input")); }
   });
 })();
+
+/* Copy en todos los bloques de código estáticos (los de tabs ya lo traen). */
+document.querySelectorAll("#content pre").forEach(pre => {
+  if (pre.closest(".codewrap")) return;
+  const wrap = document.createElement("div");
+  wrap.className = "codewrap";
+  pre.parentNode.insertBefore(wrap, pre);
+  const btn = document.createElement("button");
+  btn.className = "copy-btn";
+  btn.textContent = "Copy";
+  wrap.appendChild(btn);
+  wrap.appendChild(pre);
+});
 
 /* Credenciales: se limpia todo espacio/invisible al pegar — el fallo típico es un
    token copiado con salto de línea o espacio final que rompe la firma en silencio. */
