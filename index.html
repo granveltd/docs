@@ -115,7 +115,12 @@
     width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px;
     background: var(--bg); color: var(--fg); font-size: 13px;
   }
-  #sidebar nav a { display: block; padding: 5px 18px; color: var(--fg2); font-size: 14px; }
+  #sidebar nav a { display: block; padding: 5px 18px 5px 15px; color: var(--fg2); font-size: 14px; border-left: 3px solid transparent; }
+  #sidebar nav a.active {
+    color: var(--accent); font-weight: 600; border-left-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+  .group-toggle.active-group { color: var(--accent); }
   #sidebar nav a:hover { color: var(--fg); text-decoration: none; background: var(--border); }
   .group-toggle {
     display: flex; align-items: center; justify-content: space-between; width: 100%;
@@ -218,10 +223,12 @@
   .tryit .fields { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
   .tryit .f { flex: 1 1 180px; }
   .tryit label { font-size: 12px; font-weight: 600; color: var(--fg2); display: block; margin-bottom: 3px; }
-  .tryit input {
+  .tryit input, .tryit select {
     width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px;
     background: var(--bg); color: var(--fg); font-size: 13px;
   }
+  .tryit input[type="date"] { min-height: 34px; }
+  .tryit input:invalid, #console input:invalid { border-color: var(--err); }
   textarea.body-editor {
     width: 100%; min-height: 170px; padding: 10px; border: 1px solid var(--border); border-radius: 8px;
     background: var(--bg); color: var(--fg); font-size: 13px; line-height: 1.5; resize: vertical;
@@ -555,12 +562,12 @@ a unique bank reference, so concurrent tests by different integrators never coll
     </div>
     <div class="col">
       <label for="c-pub">Public token</label>
-      <input id="c-pub" class="mono" placeholder="prkey-…" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off">
+      <input id="c-pub" class="mono" placeholder="prkey-…" pattern="prkey-[^\s]{34}" maxlength="40" title="Format: prkey- followed by 34 characters (40 total, no spaces)" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off">
     </div>
     <div class="col">
       <label for="c-priv">Private token</label>
       <div style="display:flex;gap:6px">
-        <input id="c-priv" class="mono" type="password" placeholder="prscr-…" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off">
+        <input id="c-priv" class="mono" type="password" placeholder="prscr-…" pattern="prscr-[^\s]{34}" maxlength="40" title="Format: prscr- followed by 34 characters (40 total, no spaces)" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off">
         <button id="c-priv-load" class="run-btn" type="button" style="padding:6px 14px;font-size:13px">Load</button>
       </div>
       <p class="hint" id="c-priv-state">Not loaded — paste your key and press Load.</p>
@@ -610,7 +617,7 @@ Every error body follows the same envelope:</p>
 </table>
 <p>Authentication failures return <code>401</code>. A missing or invalid <code>X-Date</code>
 header has a dedicated code and a hint with a valid example timestamp:</p>
-<pre><code>{
+<pre><code id="code-dateinvalid">{
   "status": "failed",
   "error": {
     "code": "DATE_INVALID",
@@ -856,19 +863,11 @@ it). <code>balance</code> is the wallet balance right after this movement.</p>
 <h2 id="changelog">Changelog</h2>
 <table>
   <tr><th>Version</th><th>Date</th><th>Changes</th></tr>
-  <tr><td><code>1.2.0</code></td><td>2026-07</td><td>New <strong>Tools</strong> endpoints:
-  <code>GET /v1.0/payment-methods</code> and <code>GET /v1.0/banks</code> — the discoverable
-  catalogs behind the <code>payment</code> and <code>bank.code</code> fields.</td></tr>
-  <tr><td><code>1.1.0</code></td><td>2026-07</td><td><code>id</code> is the identifier of
-  every object: payment orders use <code>pi_…</code> and payouts <code>po_…</code>; the
-  <code>token</code> response field was removed. All notifications share one payload contract
-  (<code>id</code>/<code>status</code>/<code>order</code>, query string + JSON body) and are
-  sent to the webhook URL registered per account. Acknowledgement is HTTP <code>200</code>
-  exactly.</td></tr>
-  <tr><td><code>1.0.0</code></td><td>2026-07</td><td>Initial release of the Granve API
-  documentation: Payment (PayIn), Payment (PayOut) and Wallet endpoints; guides for authentication,
-  errors, webhooks and sandbox testing; live API console with automatic request
-  signing; code examples in 7 languages.</td></tr>
+  <tr><td><code>1.0.0</code></td><td>2026-07</td><td>Initial release of the Granve API:
+  Payment (PayIn), Payment (PayOut), Wallet and Tools endpoints; unified webhook contract
+  (<code>id</code>/<code>status</code>/<code>order</code>); guides for authentication, errors,
+  webhooks and sandbox testing; live API console with automatic request signing; code examples
+  in 7 languages.</td></tr>
 </table>
 
 </div>
@@ -893,6 +892,12 @@ function linkify(text) {
 function cleanIsoNow() {
   return new Date().toISOString().replace(/\.\d+Z$/, "Z");
 }
+
+/* Fechas de ejemplo siempre vigentes: end = hoy, start ≈ 3 meses atrás (90 días — el
+   rango máximo del API es 92; 90 nunca lo excede, ni en meses de 31). */
+const isoDay = d => d.toISOString().slice(0, 10);
+const DATE_END = isoDay(new Date());
+const DATE_START = isoDay(new Date(Date.now() - 90 * 86400000));
 
 /* The private token is imported as a NON-EXTRACTABLE CryptoKey and the raw
    string is discarded: after import, scripts can sign with it but can never
@@ -936,6 +941,15 @@ async function signWithPrivateKey(msg) {
       const group = btn.closest(".navgroup");
       const collapsed = group.classList.toggle("collapsed");
       btn.setAttribute("aria-expanded", String(!collapsed));
+      // Acordeón: un solo grupo abierto a la vez.
+      if (!collapsed) {
+        document.querySelectorAll("#nav .navgroup").forEach(g => {
+          if (g !== group && !g.classList.contains("collapsed")) {
+            g.classList.add("collapsed");
+            g.querySelector(".group-toggle").setAttribute("aria-expanded", "false");
+          }
+        });
+      }
     });
   });
 
@@ -967,6 +981,22 @@ async function signWithPrivateKey(msg) {
   });
 })();
 
+/* Credenciales: se limpia todo espacio/invisible al pegar — el fallo típico es un
+   token copiado con salto de línea o espacio final que rompe la firma en silencio. */
+["c-pub", "c-priv"].forEach(id => {
+  const el = $("#" + id);
+  el.addEventListener("input", () => {
+    const clean = el.value.replace(/\s+/g, "");
+    if (clean !== el.value) el.value = clean;
+  });
+});
+
+/* Ejemplo DATE_INVALID siempre vigente: estampa la hora real de la visita. */
+(function () {
+  const c = $("#code-dateinvalid");
+  if (c) c.textContent = c.textContent.replaceAll("2026-07-17T14:20:30Z", cleanIsoNow());
+})();
+
 /* ------------------------------------------------------------ credentials */
 const LS_KEY = "granve-docs-console";
 function loadCreds() {
@@ -995,6 +1025,10 @@ function baseUrl() {
     const raw = $("#c-priv").value.trim();
     const state = $("#c-priv-state");
     if (!raw) { state.textContent = "Nothing to load — paste your key first."; return; }
+    if (!$("#c-priv").checkValidity()) {
+      state.textContent = "That does not look like a private token (prscr-…, 40 characters). Check for typos.";
+      return;
+    }
     if (!window.crypto || !window.crypto.subtle) {
       state.textContent = "Unavailable: this page must run over https (or localhost).";
       return;
@@ -1389,8 +1423,8 @@ stabler than <code>page</code> for deep listings.</p>`,
   <tr><td><code>X-Total</code></td><td>Total records for the filter (sent on the first page).</td></tr>
 </table>`,
     query: [
-      ["start_date", "2026-07-01"],
-      ["end_date", "2026-07-17"],
+      ["start_date", DATE_START],
+      ["end_date", DATE_END],
       ["per_page", "50"],
       ["after_id", ""],
     ],
@@ -1530,8 +1564,8 @@ pass <code>start_date</code>/<code>end_date</code>; for deep listings use keyset
 <h4>Response <code>404</code></h4>
 <p>No payouts in the requested range.</p>`,
     query: [
-      ["start_date", "2026-07-01"],
-      ["end_date", "2026-07-17"],
+      ["start_date", DATE_START],
+      ["end_date", DATE_END],
       ["per_page", "50"],
       ["after_id", ""],
     ],
@@ -1610,8 +1644,8 @@ only</strong> — pass <code>start_date</code>/<code>end_date</code> for history
 <h4>Response <code>404</code></h4>
 <p>No movements in the requested range.</p>`,
     query: [
-      ["start_date", "2026-07-01"],
-      ["end_date", "2026-07-17"],
+      ["start_date", DATE_START],
+      ["end_date", DATE_END],
       ["per_page", "50"],
       ["order", "DESC"],
     ],
@@ -1735,15 +1769,42 @@ function fieldsTable(ep) {
   <table><tr><th>Field</th><th>Type</th><th>Format (regex)</th><th>Description</th></tr>${rows}</table>`;
 }
 
+/* Input tipado por parámetro: calendario para fechas, numérico para páginas/cursores,
+   select para enums — el navegador impide valores imposibles antes de llegar al API. */
+function queryInputHtml(k, v) {
+  if (k === "start_date" || k === "end_date") {
+    return `<input class="mono" type="date" data-qpar="${k}" value="${esc(v)}" max="${DATE_END}" aria-label="${k}">`;
+  }
+  if (k === "per_page") {
+    return `<input class="mono" type="number" data-qpar="${k}" value="${esc(v)}" min="10" max="5000" step="1" aria-label="${k}">`;
+  }
+  if (k === "page" || k === "after_id") {
+    return `<input class="mono" type="number" data-qpar="${k}" value="${esc(v)}" min="1" step="1" aria-label="${k}">`;
+  }
+  if (k === "order") {
+    const opts = ["DESC", "ASC"].map(o => `<option${o === v ? " selected" : ""}>${o}</option>`).join("");
+    return `<select class="mono" data-qpar="${k}" aria-label="${k}">${opts}</select>`;
+  }
+  return `<input class="mono" data-qpar="${k}" value="${esc(v)}" aria-label="${k}">`;
+}
+
 function tryitHtml(ep) {
+  // El pattern nativo reusa la MISMA regex de la columna Format del endpoint (sin anclas:
+  // el atributo pattern ancla implícito) — un solo lugar define el formato.
+  const patternFor = k => {
+    const f = (ep.fields || []).find(f => f[0] === k);
+    if (!f || !f[4]) return "";
+    const rx = f[4].replace(/^\^/, "").replace(/\$$/, "");
+    return ` pattern="${esc(rx)}" title="Format: ${esc(f[4])}"`;
+  };
   let inner = "";
   if (ep.tryit.path) {
     inner += `<div class="fields">` + ep.pathParams.map(([k, v]) =>
-      `<div class="f"><label>${k}</label><input class="mono" data-ppar="${k}" value="${esc(v)}" aria-label="${k}"></div>`).join("") + `</div>`;
+      `<div class="f"><label>${k}</label><input class="mono" data-ppar="${k}" value="${esc(v)}"${patternFor(k)} required spellcheck="false" autocapitalize="off" aria-label="${k}"></div>`).join("") + `</div>`;
   }
   if (ep.tryit.query) {
     inner += `<div class="fields">` + ep.query.map(([k, v]) =>
-      `<div class="f"><label>${k}</label><input class="mono" data-qpar="${k}" value="${esc(v)}" aria-label="${k}"></div>`).join("") + `</div>`;
+      `<div class="f"><label>${k}</label>${queryInputHtml(k, v)}</div>`).join("") + `</div>`;
   }
   if (ep.tryit.bodyEditor) {
     inner += `<label style="font-size:12px;font-weight:600;color:var(--fg2)">Request body (JSON)</label>
@@ -1781,6 +1842,64 @@ function renderEndpoint(ep) {
 }
 
 ENDPOINTS.forEach(renderEndpoint);
+
+/* ----------------------------------------------------------- scrollspy
+   Señala en el menú la sección que el lector tiene en pantalla y abre su grupo
+   (cerrando los demás — acordeón). Los h2 de grupo (payin/payout/wallet/tools)
+   no tienen link propio: activan su grupo sin marcar link. */
+(function initScrollspy() {
+  const links = [...document.querySelectorAll('#nav a[href^="#"]')];
+  const byId = new Map(links.map(a => [a.getAttribute("href").slice(1), a]));
+  const groupHeads = { payin: "payment-create", payout: "payout-create", wallet: "wallet-balance", tools: "tools-methods" };
+  const docTop = el => el.getBoundingClientRect().top + window.scrollY;
+  const targets = [...byId.keys(), ...Object.keys(groupHeads)]
+    .map(id => document.getElementById(id)).filter(Boolean)
+    .sort((a, b) => docTop(a) - docTop(b));
+  let current = null;
+
+  function groupOf(link) { return link ? link.closest(".navgroup") : null; }
+
+  function apply(id) {
+    if (id === current) return;
+    current = id;
+    links.forEach(a => a.classList.remove("active"));
+    document.querySelectorAll(".group-toggle").forEach(b => b.classList.remove("active-group"));
+    const link = byId.get(id) || byId.get(groupHeads[id]);
+    if (byId.has(id) && link) link.classList.add("active");
+    const group = groupOf(link);
+    if (group) group.querySelector(".group-toggle").classList.add("active-group");
+    // No pelear con el buscador: mientras hay búsqueda activa, no tocar los grupos.
+    if ($("#nav-search").value.trim() !== "") return;
+    document.querySelectorAll("#nav .navgroup").forEach(g => {
+      const open = g === group;
+      g.classList.toggle("collapsed", !open);
+      g.querySelector(".group-toggle").setAttribute("aria-expanded", String(open));
+    });
+    const a = byId.get(id);
+    if (a) a.scrollIntoView({ block: "nearest" });
+  }
+
+  let ticking = false;
+  function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      ticking = false;
+      const y = window.scrollY + 140;
+      let active = targets[0];
+      for (const t of targets) {
+        if (docTop(t) <= y) active = t; else break;
+      }
+      // Al llegar al fondo, la última sección gana aunque no alcance el tope del viewport.
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
+        active = targets[targets.length - 1];
+      }
+      if (active) apply(active.id);
+    });
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+})();
 $("#auth-samples").innerHTML = tabsHtml("auth");
 $("#quickstart-samples").innerHTML = tabsHtml("quickstart");
 renderAllSamples();
@@ -1825,6 +1944,18 @@ document.addEventListener("click", async e => {
   const headersEl = $(".rheaders", result);
   const bodyEl = $("pre code", result);
 
+  // No se dispara con campos inválidos: el borde rojo señala cuál corregir.
+  const bad = [...wrap.querySelectorAll("input, select")].filter(i => !i.checkValidity());
+  if (bad.length) {
+    result.style.display = "block";
+    headersEl.textContent = "";
+    bodyEl.textContent = "";
+    statusEl.textContent = "✗ Invalid field: " + bad.map(i => i.dataset.ppar || i.dataset.qpar || i.name || "?").join(", ") + " — fix the highlighted value.";
+    statusEl.className = "status err";
+    bad[0].focus();
+    return;
+  }
+
   const pub = $("#c-pub").value.trim();
   result.style.display = "block";
   headersEl.textContent = "";
@@ -1833,6 +1964,11 @@ document.addEventListener("click", async e => {
   if (!pub || !privKey) {
     statusEl.className = "status err";
     statusEl.textContent = "Enter your public token and load your private key in the API console section first.";
+    return;
+  }
+  if (!$("#c-pub").checkValidity()) {
+    statusEl.className = "status err";
+    statusEl.textContent = "The public token does not look valid (prkey-…, 40 characters) — check it in the API console section.";
     return;
   }
   if (baseUrl() === "https://api.granve.com" && !$("#c-prod-ok").checked) {
