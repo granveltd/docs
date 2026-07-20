@@ -652,7 +652,7 @@ retry.</div>
   <tr><td><code>declined</code> / <code>failed</code> / <code>attempts_exhausted</code></td><td>Payment did not complete.</td></tr>
   <tr><td><code>canceled_user</code> / <code>canceled_system</code></td><td>Canceled by the payer or by Granve.</td></tr>
   <tr><td><code>expired</code></td><td>The order expired before payment.</td></tr>
-  <tr><td><code>voided</code> / <code>refunded</code> / <code>partially_refunded</code> / <code>disputed</code> / <code>chargeback</code></td><td>Post-payment states.</td></tr>
+  <tr><td><code>voided</code> / <code>refunded</code> / <code>partially_refunded</code> / <code>disputed</code> / <code>chargeback</code></td><td>Post-payment states, set by Granve operations (compliance, support or the admin panel) — never by the payment flow itself. Treat them as read-only signals: they can appear on an order that was already <code>completed</code>.</td></tr>
 </table>
 </div>
 <div class="codecol">
@@ -1477,14 +1477,21 @@ const ENDPOINTS = [
 including the <code>redirect_url</code> where you must send your customer to pay. Store the returned
 <code>id</code>: it is the identifier for every later query.
 <p>When the order reaches a terminal state, the result is delivered as described in
-<a href="#webhooks">Webhooks &amp; return URL</a>.</p>`,
+<a href="#webhooks">Webhooks &amp; return URL</a>.</p>
+<div class="note"><strong>Idempotency on timeout:</strong> your <code>order</code> is the
+idempotency key. If a <code>POST /v1.0/payment</code> times out with no response, <strong>retry
+with the same <code>order</code></strong>. A <code>409</code> means the first request already
+created it — never a duplicate; recover the order with
+<a href="#payment-get-order"><code>GET /v1.0/payment/order/{order}</code></a> to read its
+<code>id</code> and <code>redirect_url</code>. Never generate a new <code>order</code> for a retry:
+that is how double charges happen.</div>`,
     fieldsTitle: "Body parameters",
     fields: [
       ["payment", "string", true, "Id of the payment method to charge with — list the ones enabled for your account with <a href=\"#tools-methods\">GET /v1.0/payment-methods</a>.", "^[A-Za-z0-9]+$"],
       ["amount", "string | number", true, "Amount to charge. Decimal with up to 2 places; minimum <strong>5 VES</strong>.", "^\\d+(\\.\\d{1,2})?$"],
       ["email", "string", true, "Payer's email. Must be a valid address.", "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"],
       ["order", "string", true, "Your unique order identifier — letters, digits and hyphens, up to 50 characters. Reusing an existing value returns <code>409</code>.", "^[a-zA-Z0-9-]{1,50}$"],
-      ["subject", "string", true, "Description of the product or service.", "^[a-zA-Z0-9 ]+$"],
+      ["subject", "string", true, "Description of the product or service — 2–100 characters: letters, digits and spaces. Accents are folded to plain letters (á→a, ñ→n); any other character is removed.", "^[a-zA-Z0-9 ]{2,100}$"],
       ["document", "string", false, "Payer's identity document: type letter + digits (e.g. <code>V00000000</code>). Allowed types: V, E, J.", "^[VEJ]\\d{7,10}$"],
       ["phone", "string", false, "Payer's phone, format <code>04XXNNNNNNN</code> (prefixes 0412, 0414, 0416, 0422, 0424, 0426).", "^(0412|0414|0416|0422|0424|0426)\\d{7}$"],
       ["additional_parameters", "object", false, "Free key/value object echoed back inside <code>commerce.additional_parameters</code> in every response."],
@@ -1605,13 +1612,19 @@ stabler than <code>page</code> for deep listings.</p>`,
 <p>The destination is defined by <code>bank.num</code>: an <strong>11-digit mobile number</strong>
 selects Pago Móvil (then <code>bank.code</code> is required), a <strong>20-digit account
 number</strong> selects bank transfer (then <code>bank.type</code> is required and the bank is taken
-from the account's first 4 digits).</p>`,
+from the account's first 4 digits).</p>
+<div class="note"><strong>Idempotency on timeout:</strong> your <code>order</code> is the
+idempotency key. If this request times out with no response, <strong>retry with the same
+<code>order</code></strong> — a <code>409</code> means the first request already ran and your
+wallet was debited only once. Recover it with
+<a href="#payout-get-order"><code>GET /v1.0/payout/order/{order}</code></a>. Never generate a new
+<code>order</code> for a retry: that is how double withdrawals happen.</div>`,
     fieldsTitle: "Body parameters",
     fields: [
       ["email", "string", true, "Beneficiary's email, up to 100 characters.", "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"],
       ["phone", "string", true, "Beneficiary's phone, 11 digits (prefixes 0412, 0414, 0416, 0422, 0424, 0426).", "^(0412|0414|0416|0422|0424|0426)\\d{7}$"],
       ["order", "string", true, "Your unique payout identifier — letters, numbers and hyphens, up to 99 characters. Reusing a value returns <code>409</code>.", "^[a-zA-Z0-9-]{1,99}$"],
-      ["subject", "string", true, "Concept of the payout, 5–200 characters.", "^[a-zA-Z0-9 ]{5,200}$"],
+      ["subject", "string", true, "Concept of the payout — 5–200 characters: letters, digits and spaces. Accents are folded to plain letters (á→a, ñ→n); any other character is removed.", "^[a-zA-Z0-9 ]{5,200}$"],
       ["amount", "integer", true, "Amount in VES, <strong>whole numbers only</strong> — payouts are whole-VES by design (unlike PayIn, which accepts decimals). Minimum 1.", "^[1-9]\\d*$"],
       ["bank.name", "string", true, "Beneficiary's name, 3–50 characters.", "^[a-zA-Z0-9 ]{3,50}$"],
       ["bank.document", "string", true, "Identity document: type letter (V, E, J) + 7–10 digits (e.g. <code>V00000000</code>).", "^[VEJ]\\d{7,10}$"],
