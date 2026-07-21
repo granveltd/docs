@@ -351,6 +351,7 @@ and standard HTTP status codes. All responses are JSON, including errors.</p>
   <tr><td><code>401</code></td><td>Authentication failed (token, <code>X-Date</code> or <code>X-Sign</code> header invalid).</td></tr>
   <tr><td><code>404</code></td><td>Resource not found.</td></tr>
   <tr><td><code>409</code></td><td>Conflict — the <code>order</code> identifier already exists for your account.</td></tr>
+  <tr><td><code>429</code></td><td>Rate limit exceeded — slow down and retry after the <code>Retry-After</code> header.</td></tr>
   <tr><td><code>500</code></td><td>Internal server error.</td></tr>
 </table>
 
@@ -371,6 +372,10 @@ working. Prefer the machine-readable contract? Download the
   <strong>America/Caracas time (UTC−4, no DST)</strong> — Venezuela's timezone, where all
   payments settle. Note this differs from the <code>X-Date</code> request header, which must be
   UTC.</li>
+  <li><strong>Rate limit: 1200 requests/minute</strong> per IP. Every response carries
+  <code>X-RateLimit-Limit</code> and <code>X-RateLimit-Remaining</code>; exceeding the limit
+  returns <code>429</code> with a <code>Retry-After</code> header (seconds to wait). Back off and
+  retry — do not hammer.</li>
   <li id="idempotency"><strong>Idempotency:</strong> your <code>order</code> is the idempotency
   key on both <code>POST</code> endpoints. If a create request times out with no response,
   <strong>retry with the same <code>order</code></strong> — a duplicate returns
@@ -811,6 +816,22 @@ payout generated: the payout amount and the commission. <code>bank.method</code>
 <p>Your wallet is the ledger of your Granve balance: every PayIn settlement, payout, fee and deposit
 is a <em>movement</em>. Balances and movements are per currency (<code>VES</code>).</p>
 
+<h3 id="fees-settlement">Fees &amp; settlement</h3>
+<p>A completed PayIn is not immediately spendable. Its funds first appear as
+<strong><code>balance.pending</code></strong> (collected, not yet settled), and are moved into your
+spendable <strong><code>balance.available</code></strong> by a <em>settlement</em> that runs on
+Venezuelan business days. When it settles, a <code>credit</code> movement is added to your wallet and
+the originating payment's <code>payment.settlement</code> is filled:</p>
+<ul>
+  <li><code>payment.settlement.settled_at</code> — the date (<code>YYYY-MM-DD</code>) the payment was
+  settled into your wallet; <code>null</code> while still pending.</li>
+  <li><code>payment.settlement.id</code> — identifier of the settlement batch that moved it.</li>
+</ul>
+<p>On the payout side, <code>wallet.payout.deposit.settled_at</code> confirms the date the money was
+actually deposited to the beneficiary (with <code>deposit.amount</code>). Fees are their own wallet
+movement: a payout generates a <code>wallet.payout</code> debit (the amount) plus a
+<code>wallet.fee</code> debit (the commission).</p>
+
 <div class="split">
 <div class="doc">
 <h3 style="margin-top:0">The movement object</h3>
@@ -914,8 +935,8 @@ past the recovery window), you can request it yourself:</p>
 
 {valid} = HMAC_SHA256({id}, your_private_token)   // hex</code></pre>
 <p>It only re-fires for successful orders from the last 3 months whose webhook was never
-acknowledged, and always answers an empty <code>200</code> — it never confirms whether the order
-exists.</p>
+acknowledged, and always answers <code>200</code> with an empty array body (<code>[]</code>) —
+it never confirms whether the order exists.</p>
 
 <h3>Payer return (browser redirect)</h3>
 <p>After finishing (or abandoning) the hosted payment page, the payer's browser is redirected to
@@ -1548,7 +1569,7 @@ that is how double charges happen.</div>`,
     ],
     body: CREATE_BODY,
     responses: `<h4>Response <code>200</code></h4>
-<p>The full <a href="#payin">payment order object</a>, with <code>status = "pending"</code>.</p>
+<p>The full <a href="#payin">payment order object</a>, with <code>status = "created"</code>.</p>
 <h4>Response <code>400</code> — validation error</h4>
 <pre><code>{
   "status": "failed",
