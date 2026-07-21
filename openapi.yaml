@@ -104,7 +104,7 @@ info:
     ## Webhooks & return URL
 
     **One action, every object.** When an object reaches its final state, Granve sends a
-    `POST` to the webhook URL registered for your account — same payload, acknowledgement
+    `POST` to the webhook URL registered for your account — same payload, acknowledgment
     and retry policy for every object type; only the trigger depends on the object:
     a **payment order** (`pi_…`) notifies on reaching a terminal state (`completed`,
     `attempts_exhausted`, `expired`, `canceled_user`); a **payout** (`po_…`) notifies when
@@ -201,7 +201,13 @@ paths:
                   description: "Free key/value object echoed back inside commerce.additional_parameters in every response."
                 payer:
                   type: object
-                  description: "Optional prefill for background bank verification (phone, document, reference, bank, date)."
+                  description: "Optional prefill for the background bank verification. All sub-fields optional."
+                  properties:
+                    id_number: { type: string, pattern: '^[VJE][0-9]{5,9}$', description: "Payer's document: letter + 5-9 digits." }
+                    phone_number: { type: string, pattern: '^(0412|0414|0416|0422|0424|0426)[0-9]{7}$' }
+                    bank_code: { type: string, description: "A 4-digit code from GET /v1.0/banks." }
+                    payment_reference: { type: string, pattern: '^[0-9]{4,14}$' }
+                    payment_date: { type: string, format: date, description: "YYYY-MM-DD." }
             example:
               payment: "YOURMETHODTOKEN"
               amount: "100.00"
@@ -252,11 +258,11 @@ paths:
         - $ref: "#/components/parameters/HeaderSign"
         - name: start_date
           in: query
-          description: "Filter start (YYYY-MM-DD). Must not be in the future."
+          description: "Filter start date (YYYY-MM-DD). Defaults to today; must not be in the future."
           schema: { type: string, format: date }
         - name: end_date
           in: query
-          description: "Filter end (YYYY-MM-DD). Must not be in the future. The range may span at most 92 days."
+          description: "Filter end date (YYYY-MM-DD). Defaults to today; must not be in the future. The range may span at most 92 days."
           schema: { type: string, format: date }
         - name: per_page
           in: query
@@ -264,11 +270,11 @@ paths:
           schema: { type: integer, minimum: 10, maximum: 5000 }
         - name: page
           in: query
-          description: "Classic page number (offset pagination)."
+          description: "Page number (offset pagination), starting at 1."
           schema: { type: integer, minimum: 1 }
         - name: after_id
           in: query
-          description: "Keyset cursor: return records older than this id. Use the X-Next-Cursor header from the previous page."
+          description: "Keyset cursor: pass the X-Next-Cursor header from the previous page to fetch records after it."
           schema: { type: integer, minimum: 1 }
       responses:
         "200":
@@ -493,19 +499,23 @@ paths:
         - $ref: "#/components/parameters/HeaderSign"
         - name: start_date
           in: query
+          description: "Filter start date (YYYY-MM-DD). Defaults to today; must not be in the future."
           schema: { type: string, format: date }
         - name: end_date
           in: query
-          description: "Range limited to 92 days."
+          description: "Filter end date (YYYY-MM-DD). Defaults to today; must not be in the future. The range may span at most 92 days."
           schema: { type: string, format: date }
         - name: per_page
           in: query
+          description: "Records per page: 10-5000. Default 5000."
           schema: { type: integer, minimum: 10, maximum: 5000 }
         - name: page
           in: query
+          description: "Page number (offset pagination), starting at 1."
           schema: { type: integer, minimum: 1 }
         - name: after_id
           in: query
+          description: "Keyset cursor: pass the X-Next-Cursor header from the previous page to fetch records after it."
           schema: { type: integer, minimum: 1 }
       responses:
         "200":
@@ -558,7 +568,7 @@ paths:
     get:
       tags: [Payment (PayOut)]
       summary: Get by order
-      description: Retrieves the most recent payout matching your own `order` identifier (last 180 days).
+      description: Retrieves the payout for your own `order` identifier. Each `order` is unique to one payout and cannot be reused.
       parameters:
         - name: order
           in: path
@@ -614,15 +624,19 @@ paths:
         - $ref: "#/components/parameters/HeaderSign"
         - name: start_date
           in: query
+          description: "Filter start date (YYYY-MM-DD). Defaults to today; must not be in the future."
           schema: { type: string, format: date }
         - name: end_date
           in: query
+          description: "Filter end date (YYYY-MM-DD). Defaults to today."
           schema: { type: string, format: date }
         - name: per_page
           in: query
+          description: "Records per page: 10-5000. Default 5000."
           schema: { type: integer, minimum: 10, maximum: 5000 }
         - name: page
           in: query
+          description: "Page number (offset pagination), starting at 1."
           schema: { type: integer, minimum: 1 }
         - name: order
           in: query
@@ -823,7 +837,6 @@ components:
               properties:
                 name: { type: string }
                 document: { type: string }
-                document_type: { type: string }
                 code: { type: string }
                 type: { type: string, nullable: true }
                 num: { type: string }
@@ -833,7 +846,7 @@ components:
                   description: "Delivery method."
         wallet:
           type: object
-          description: "The two wallet movements generated by the payout (amount and fee)."
+          description: "The two wallet movements generated by the payout: the amount and the fee. `payout_tax` is the fee (legacy field name — not a tax). System-generated `subject` values (e.g. Cargo payout…) are returned in Spanish."
           properties:
             payout:
               $ref: "#/components/schemas/WalletMovement"
@@ -889,7 +902,7 @@ components:
           type: object
           properties:
             email: { type: string }
-            dni: { type: string, nullable: true }
+            document: { type: string, nullable: true }
             phone: { type: string, nullable: true }
         payment:
           type: object
@@ -928,7 +941,7 @@ components:
           amount: "100.00"
         payer:
           email: "user@example.com"
-          dni: "V00000000"
+          document: "V00000000"
           phone: "04120000000"
         payment:
           start: null
