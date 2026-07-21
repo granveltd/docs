@@ -77,7 +77,7 @@ info:
     $sign = hash_hmac('sha256', $date, $your_private_token);
     ```
 
-    An invalid or expired `X-Date` returns `401` with `error.code = "DATE_INVALID"`.
+    An invalid or expired `X-Date` returns `401` with `error.code = "date_invalid"`.
 
     ## Testing
 
@@ -95,11 +95,13 @@ info:
 
     ## Errors
 
-    Every error body follows the same envelope:
-    `{"status": "failed", "error": {"type": "...", "message": {"field": "reason"}}}`.
-    `error.type` is `invalid_request_error` (fix the request, do not retry as-is) or
-    `api_error` (server-side, safe to retry with backoff). Not-found lookups return
-    `404` with `{"status": "failed", "error": {"message": "not found"}}`.
+    Every error — validation, auth, not-found, server — uses the same envelope:
+    `{"status": "failed", "error": {"code": "...", "message": "...", "request_id": "..."}}`.
+    `code` is always present: `invalid_request` (400/409), `date_invalid` (401),
+    `auth_failed` (401), `not_found` (404) or `api_error` (500). `message` is always a
+    string. `fields` (per-field detail) appears only on validation (400/409). `request_id`
+    is always present — quote it in support requests. The `date_invalid` case adds a `hint`
+    and an `example` timestamp.
 
     ## Webhooks & return URL
 
@@ -190,7 +192,7 @@ paths:
                 metadata:
                   type: object
                   additionalProperties: true
-                  description: "Free key/value object you attach to the order — stored and echoed back inside commerce.metadata in every response. Up to 50 keys or 2 KB."
+                  description: "Free key/value object you attach to the order — stored and echoed back inside merchant.metadata in every response. Up to 50 keys or 2 KB."
                 payer:
                   type: object
                   description: "The payer object: identity plus, when the customer already paid by mobile payment, the proof for background bank verification. All sub-fields optional."
@@ -233,9 +235,11 @@ paths:
               example:
                 status: failed
                 error:
-                  type: invalid_request_error
-                  message:
+                  code: invalid_request
+                  message: "The request conflicts with an existing resource."
+                  fields:
                     order: "already exists"
+                  request_id: "req_…"
         "500":
           description: Internal server error.
 
@@ -408,16 +412,8 @@ paths:
           application/json:
             schema:
               type: object
-              required: [email, phone, order, subject, amount, bank]
+              required: [order, subject, amount, beneficiary, bank]
               properties:
-                email:
-                  type: string
-                  format: email
-                  maxLength: 100
-                phone:
-                  type: string
-                  pattern: '^(0412|0414|0416|0422|0424|0426)[0-9]{7}$'
-                  description: "11 digits; prefixes 0412, 0414, 0416, 0422, 0424, 0426."
                 order:
                   type: string
                   pattern: '^[a-zA-Z0-9-]{1,99}$'
@@ -432,38 +428,48 @@ paths:
                   type: integer
                   minimum: 1
                   description: "Amount in VES, whole numbers only (no decimals)."
-                bank:
+                beneficiary:
                   type: object
-                  required: [name, document, num]
+                  required: [name, document, email, phone]
                   properties:
                     name: { type: string, minLength: 3, maxLength: 50 }
                     document:
                       type: string
                       pattern: '^[VEJ][0-9]{7,10}$'
                       description: "Type letter (V, E, J) + 7–10 digits (e.g. V00000000)."
+                    email: { type: string, format: email, maxLength: 100 }
+                    phone:
+                      type: string
+                      pattern: '^(0412|0414|0416|0422|0424|0426)[0-9]{7}$'
+                      description: "11 digits; prefixes 0412, 0414, 0416, 0422, 0424, 0426."
+                bank:
+                  type: object
+                  required: [num]
+                  properties:
                     num:
                       type: string
                       pattern: '^((0412|0414|0416|0422|0424|0426)[0-9]{7}|[0-9]{20})$'
-                      description: "11-digit mobile (Pago Móvil) or 20-digit account (transfer)."
+                      description: "Destination — 11-digit mobile (Pago Móvil) or 20-digit account (transfer). Polymorphic: length selects the method."
                     code:
                       type: string
-                      description: "Bank code — required for Pago Móvil. Any code returned by GET /v1.0/banks (Tools)."
+                      description: "Required for Pago Móvil (11-digit num) — any code from GET /v1.0/banks. Ignored for transfers (derived from the account number)."
                     type:
                       type: string
                       enum: [A, C]
-                      description: "Account type — required for transfers: A (savings) or C (checking)."
+                      description: "Required for transfers (20-digit num): A (savings) or C (checking). Not used for Pago Móvil."
                 metadata:
                   type: object
                   additionalProperties: true
             example:
-              email: "user@example.com"
-              phone: "04120000000"
               order: "PO-0001"
               subject: "Lorem ipsum payout"
               amount: 100
-              bank:
+              beneficiary:
                 name: "Lorem Ipsum"
                 document: "V00000000"
+                email: "user@example.com"
+                phone: "04120000000"
+              bank:
                 num: "04120000000"
                 code: "0102"
               metadata:
@@ -605,11 +611,13 @@ paths:
               schema:
                 type: object
                 properties:
-                  balance: { type: string }
+                  available: { type: string, description: "Disbursable now." }
+                  pending: { type: string, description: "PayIn collected, not yet settled into the wallet." }
                   currency: { type: string }
                   livemode: { type: boolean }
               example:
-                balance: "900.00"
+                available: "900.00"
+                pending: "150.00"
                 currency: "VES"
                 livemode: false
         "401":
@@ -644,7 +652,7 @@ paths:
           in: query
           description: "Page number (offset pagination), starting at 1."
           schema: { type: integer, minimum: 1 }
-        - name: order
+        - name: sort
           in: query
           description: "Sort by movement id: ASC or DESC (default)."
           schema: { type: string, enum: [ASC, DESC] }
@@ -790,15 +798,17 @@ components:
 
   responses:
     ValidationError:
-      description: Validation failed. `error.message` details each invalid field.
+      description: Validation failed. `error.fields` details each invalid field.
       content:
         application/json:
           example:
             status: failed
             error:
-              type: invalid_request_error
-              message:
+              code: invalid_request
+              message: "Validation failed."
+              fields:
                 amount: "must be at least 5 VES"
+              request_id: "req_…"
     AuthError:
       description: Authentication failed (token, X-Date or X-Sign invalid).
       content:
@@ -806,9 +816,9 @@ components:
           example:
             status: failed
             error:
-              code: DATE_INVALID
-              message: "El header X-Date es obligatorio."
-              hint: "Envía el header X-Date en UTC ISO-8601 con Z."
+              code: auth_failed
+              message: "Invalid authentication credentials."
+              request_id: "req_…"
     NotFound:
       description: Resource not found.
       content:
@@ -816,7 +826,9 @@ components:
           example:
             status: failed
             error:
-              message: "not found"
+              code: not_found
+              message: "Resource not found."
+              request_id: "req_…"
 
   schemas:
     Payout:
@@ -833,26 +845,32 @@ components:
           enum: [created, processing, completed, declined, rejected, settlement_pending, settled]
         created_at:
           type: string
-        commerce:
+        merchant:
           type: object
           properties:
-            email: { type: string }
-            phone: { type: string }
             order: { type: string }
             subject: { type: string }
-            amount: { type: number }
-            bank:
+            amount: { type: string }
+            metadata:
               type: object
-              properties:
-                name: { type: string }
-                document: { type: string }
-                code: { type: string }
-                type: { type: string, nullable: true }
-                num: { type: string }
-                method:
-                  type: string
-                  enum: [mobile, transfer]
-                  description: "Delivery method."
+              additionalProperties: true
+        beneficiary:
+          type: object
+          properties:
+            name: { type: string }
+            document: { type: string }
+            email: { type: string }
+            phone: { type: string }
+        bank:
+          type: object
+          properties:
+            code: { type: string }
+            type: { type: string, nullable: true }
+            num: { type: string }
+            method:
+              type: string
+              enum: [mobile, transfer]
+              description: "Delivery method."
         wallet:
           type: object
           description: "The two wallet movements generated by the payout: the amount and the fee. `payout_tax` is the fee (legacy field name — not a tax). System-generated `subject` values (e.g. Cargo payout…) are returned in Spanish."
@@ -902,7 +920,7 @@ components:
         redirect_url:
           type: string
           description: "Signed URL of the hosted payment page — send your customer here. Opaque: host and path depend on the environment and the payment method; use it verbatim, never build or parse it."
-        commerce:
+        merchant:
           type: object
           properties:
             order: { type: string }
@@ -920,8 +938,8 @@ components:
         payment:
           type: object
           properties:
-            start: { type: string, nullable: true }
-            end: { type: string, nullable: true }
+            started_at: { type: string, nullable: true }
+            ended_at: { type: string, nullable: true }
             amount: { type: string }
             fee: { type: string }
             authorization:
@@ -932,12 +950,12 @@ components:
             gateway: { type: string, nullable: true }
             type:
               type: string
-              enum: [bank_transfer, mobile_payment, bank_card, default]
+              enum: [bank_transfer, mobile_payment, card, default]
             card:
               type: object
               properties:
-                last4digits: { type: string, nullable: true }
-                authorizationcode: { type: string, nullable: true }
+                last4: { type: string, nullable: true }
+                authorization_code: { type: string, nullable: true }
                 installments: { type: integer, nullable: true }
                 method: { type: string, nullable: true }
 
@@ -949,7 +967,7 @@ components:
         status: "pending"
         created_at: "2026-01-01 00:00:00"
         redirect_url: "{base_url}/{payment_method}/pi_00000000000000000000000000000000?signature=…"
-        commerce:
+        merchant:
           order: "ORDER0001"
           subject: "Lorem ipsum dolor sit"
           amount: "100.00"
@@ -958,8 +976,8 @@ components:
           document: "V00000000"
           phone: "04120000000"
         payment:
-          start: null
-          end: null
+          started_at: null
+          ended_at: null
           amount: "0.00"
           fee: "0.00"
           authorization: null
@@ -967,7 +985,7 @@ components:
           gateway: null
           type: "mobile_payment"
           card:
-            last4digits: null
-            authorizationcode: null
+            last4: null
+            authorization_code: null
             installments: null
             method: null
