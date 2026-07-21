@@ -393,7 +393,7 @@ both environments, so the code you write on day one is the code that runs in pro
   <line class="life" x1="570" y1="36" x2="570" y2="222"/>
   <text class="lbl" x="225" y="62">POST /v1.0/payment</text>
   <line class="msg" x1="110" y1="70" x2="334" y2="70" marker-end="url(#qsarr)"/>
-  <text class="lbl" x="225" y="96">token + redirect_url</text>
+  <text class="lbl" x="225" y="96">id + redirect_url</text>
   <line class="msg ret" x1="340" y1="104" x2="116" y2="104" marker-end="url(#qsarr)"/>
   <text class="lbl" x="340" y="130">redirect to the payment page</text>
   <line class="msg" x1="110" y1="138" x2="564" y2="138" marker-end="url(#qsarr)"/>
@@ -436,7 +436,7 @@ both environments, so the code you write on day one is the code that runs in pro
     <p>Every call carries three headers: <code>Authorization</code>, <code>X-Date</code> and
     <code>X-Sign</code> — an HMAC-SHA256 signature of the timestamp, keyed with your private
     token (<a href="#authentication">Authentication</a>). The sample on the right computes all
-    three for you in seven languages, and is runnable as-is against Sandbox.</p>
+    three for you in 7 languages, and is runnable as-is against Sandbox.</p>
   </div></div>
 
   <div class="qs-step"><div class="qs-n">3</div><div class="qs-body">
@@ -475,8 +475,8 @@ charge:</p>
 <ul class="qs-check">
   <li>Register your <strong>production</strong> webhook and return URLs. They are configured per
   environment, so nothing you set up in Sandbox ever points at production.</li>
-  <li>Check that responses now say <code>"livemode": true</code> — a <code>false</code> here
-  means you are still calling Sandbox.</li>
+  <li>Confirm every production response carries <code>"livemode": true</code> — a
+  <code>false</code> means the call reached Sandbox, not Production.</li>
   <li>Make sure your webhook handler answers quickly with HTTP <code>200</code> — slow or
   non-200 responses count as failed deliveries.</li>
 </ul>
@@ -571,12 +571,12 @@ by the <strong>last two digits of the amount</strong>, a few seconds after creat
   <tr><td><code>50</code></td><td>Stays in <code>created</code> — useful to test polling and pending states</td></tr>
   <tr><td>anything else</td><td><code>completed</code> in ~10 seconds, with deposit fields set — the webhook fires</td></tr>
 </table>
-<p>Example: <code>"amount": 199</code> simulates a rejected payout; <code>"amount": 100</code>
+<p>Example: <code>"amount": 199</code> simulates a <code>declined</code> payout; <code>"amount": 100</code>
 completes normally.</p>
 <ul>
   <li><strong>Full PayIn flow:</strong> create an order, open the returned <code>redirect_url</code>
-  in a browser to see the hosted payment page, then query the order by token or by your own
-  <code>order</code> id.</li>
+  in a browser to see the hosted payment page, then query it by its <code>id</code> or by your
+  own <code>order</code> identifier.</li>
   <li><strong>Duplicate handling:</strong> re-send the same <code>order</code> value to see the
   <code>409</code> conflict response.</li>
   <li><strong>Validation:</strong> send <code>amount</code> below the minimum or a malformed
@@ -679,7 +679,7 @@ retry.</div>
   },
   "payer": {
     "email": "user@example.com",
-    "dni": "V00000000",
+    "document": "V00000000",
     "phone": "04120000000"
   },
   "payment": {
@@ -724,8 +724,11 @@ payout is accepted.</p>
 <div class="doc">
 <h3 style="margin-top:0">The payout object</h3>
 <p><code>wallet.payout</code> and <code>wallet.payout_tax</code> are the two wallet movements the
-payout generated (amount and fee). <code>bank.method</code> is <code>mobile</code> or
+payout generated: the payout amount and the fee. <code>payout_tax</code> is the fee (legacy field
+name — it is not a tax). <code>bank.method</code> is <code>mobile</code> or
 <code>transfer</code>.</p>
+<div class="note">System-generated <code>subject</code> values in these movements
+(e.g. <code>Cargo payout…</code>) are returned in Spanish.</div>
 <p><code>status</code> is one of:</p>
 <table>
   <tr><th>Status</th><th>Meaning</th></tr>
@@ -750,8 +753,7 @@ payout generated (amount and fee). <code>bank.method</code> is <code>mobile</cod
     "amount": "100.00",
     "bank": {
       "name": "Lorem Ipsum",
-      "document": "00000000",
-      "document_type": "V",
+      "document": "V00000000",
       "code": "0102",
       "type": null,
       "num": "04120000000",
@@ -826,7 +828,7 @@ it). <code>balance</code> is the wallet balance right after this movement.</p>
 a <code>POST</code> to the <strong>webhook URL registered for your account</strong> (set by the
 compliance team — email <a href="mailto:hola@granve.com">hola@granve.com</a> to add or change it).
 The payload,
-the acknowledgement rule and the retry policy are identical for every object type — the only
+the acknowledgment rule and the retry policy are identical for every object type — the only
 thing that depends on the object is <em>when</em> it fires:</p>
 
 <table>
@@ -835,7 +837,7 @@ thing that depends on the object is <em>when</em> it fires:</p>
   <tr><td><a href="#payout">Payout</a></td><td><code>po_…</code></td><td>The payout is processed by the bank</td><td><code>completed</code>, <code>declined</code></td></tr>
 </table>
 
-<p>Every notification carries the same three parameters, appended to the URL as a query string
+<p>Every notification carries the same three parameters (plus <code>livemode</code> in the JSON body), appended to the URL as a query string
 <em>and</em> repeated as the JSON body:</p>
 
 <table>
@@ -966,7 +968,7 @@ and no <code>--data</code>.</p>
 answer <strong>HTTP 200 exactly</strong> (a <code>201</code>/<code>204</code> counts as a failed
 delivery); or it answered too slowly.</p>
 <p><strong>Fix:</strong> register your URL, acknowledge with a fast empty <code>200</code>, and
-remember failed deliveries are retried automatically. Whenever in doubt, poll the authenticated
+remember failed deliveries are retried automatically. When in doubt, poll the authenticated
 GET — it is always the source of truth.</p>
 
 <h3>Browser shows "Network error: Failed to fetch"</h3>
@@ -1512,7 +1514,7 @@ that is how double charges happen.</div>`,
       ["document", "string", false, "Payer's identity document: type letter + digits (e.g. <code>V00000000</code>). Allowed types: V, E, J.", "^[VEJ]\\d{7,10}$"],
       ["phone", "string", false, "Payer's phone, format <code>04XXNNNNNNN</code> (prefixes 0412, 0414, 0416, 0422, 0424, 0426).", "^(0412|0414|0416|0422|0424|0426)\\d{7}$"],
       ["additional_parameters", "object", false, "Free key/value object echoed back inside <code>commerce.additional_parameters</code> in every response."],
-      ["payer", "object", false, "Optional prefill for background bank verification: <code>phone</code>, <code>document</code>, <code>reference</code>, <code>bank</code>, <code>date</code>."],
+      ["payer", "object", false, "Optional prefill for the background bank verification. All sub-fields are optional:<ul style='margin:6px 0 0;padding-left:18px'><li><code>id_number</code> — payer's document, letter + 5–9 digits (<code>^[VJE]\\d{5,9}$</code>)</li><li><code>phone_number</code> — <code>04XXNNNNNNN</code> (prefixes 0412, 0414, 0416, 0422, 0424, 0426)</li><li><code>bank_code</code> — a 4-digit code from <a href=\"#tools-banks\">GET /v1.0/banks</a></li><li><code>payment_reference</code> — 4–14 digits</li><li><code>payment_date</code> — <code>YYYY-MM-DD</code></li></ul>"],
     ],
     body: CREATE_BODY,
     responses: `<h4>Response <code>200</code></h4>
@@ -1549,14 +1551,14 @@ that is how double charges happen.</div>`,
 defaults to today only</strong>; an empty result is <code>200 []</code>.
 <p>For large volumes use <strong>keyset pagination</strong>: read the <code>X-Next-Cursor</code>
 response header and pass it back as <code>after_id</code> to fetch the next page. It is faster and
-stabler than <code>page</code> for deep listings.</p>`,
+more stable than <code>page</code> for deep listings.</p>`,
     fieldsTitle: "Query parameters",
     fields: [
-      ["start_date", "date", false, "Filter start, format <code>YYYY-MM-DD</code>. Must not be in the future.", "^\\d{4}-\\d{2}-\\d{2}$"],
-      ["end_date", "date", false, "Filter end, format <code>YYYY-MM-DD</code>. Must not be in the future. The range <code>start_date…end_date</code> may span at most <strong>92 days</strong>.", "^\\d{4}-\\d{2}-\\d{2}$"],
-      ["per_page", "integer", false, "Records per page: 10 – 5000. Default 5000.", "^\\d+$"],
-      ["page", "integer", false, "Classic page number (offset pagination).", "^[1-9]\\d*$"],
-      ["after_id", "integer", false, "Keyset cursor: return records older than this id. Use the value of the <code>X-Next-Cursor</code> header from the previous page.", "^[1-9]\\d*$"],
+      ["start_date", "date", false, "Filter start date (<code>YYYY-MM-DD</code>). Defaults to today; must not be in the future.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["end_date", "date", false, "Filter end date (<code>YYYY-MM-DD</code>). Defaults to today; must not be in the future. The range may span at most <strong>92 days</strong>.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["per_page", "integer", false, "Records per page: 10–5000. Default 5000.", "^\\d+$"],
+      ["page", "integer", false, "Page number (offset pagination), starting at 1.", "^[1-9]\\d*$"],
+      ["after_id", "integer", false, "Keyset cursor: pass the <code>X-Next-Cursor</code> header from the previous page to fetch records after it.", "^[1-9]\\d*$"],
     ],
     responses: `<h4>Response <code>200</code></h4>
 <p>JSON array of payment order objects. Response headers:</p>
@@ -1602,7 +1604,7 @@ stabler than <code>page</code> for deep listings.</p>`,
     path: "/v1.0/payment/order/{order}",
     title: "Get a payment order by your order id",
     desc: `Retrieves one payment order using <strong>your own</strong> <code>order</code> identifier
-(the one you sent on <a href="#payment-create">Create</a>) instead of the Granve token.`,
+(the one you sent on <a href="#payment-create">Create</a>) instead of the Granve <code>id</code>.`,
     fieldsTitle: "Path parameters",
     fields: [
       ["order", "string", true, "Your order identifier (e.g. <code>ORDER0001</code>).", "^[a-zA-Z0-9-]{1,50}$"],
@@ -1627,7 +1629,7 @@ stabler than <code>page</code> for deep listings.</p>`,
     desc: `Creates a payout to a beneficiary and debits your wallet (amount + fee). Returns the
 <a href="#payout">payout object</a>; store its <code>id</code> to query the state later.
 <p>The destination is defined by <code>bank.num</code>: an <strong>11-digit mobile number</strong>
-selects Pago Móvil (then <code>bank.code</code> is required), a <strong>20-digit account
+selects Pago Móvil (then <code>bank.code</code> is required); a <strong>20-digit account
 number</strong> selects bank transfer (then <code>bank.type</code> is required and the bank is taken
 from the account's first 4 digits).</p>
 <div class="note"><strong>Idempotency on timeout:</strong> your <code>order</code> is the
@@ -1640,7 +1642,7 @@ wallet was debited only once. Recover it with
     fields: [
       ["email", "string", true, "Beneficiary's email, up to 100 characters.", "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"],
       ["phone", "string", true, "Beneficiary's phone, 11 digits (prefixes 0412, 0414, 0416, 0422, 0424, 0426).", "^(0412|0414|0416|0422|0424|0426)\\d{7}$"],
-      ["order", "string", true, "Your unique payout identifier — letters, numbers and hyphens, up to 99 characters. Reusing a value returns <code>409</code>.", "^[a-zA-Z0-9-]{1,99}$"],
+      ["order", "string", true, "Your unique payout identifier — letters, digits and hyphens, up to 99 characters. Reusing a value returns <code>409</code>.", "^[a-zA-Z0-9-]{1,99}$"],
       ["subject", "string", true, "Concept of the payout — 5–200 characters: letters, digits and spaces. Accents are folded to plain letters (á→a, ñ→n); any other character is removed.", "^[a-zA-Z0-9 ]{5,200}$"],
       ["amount", "integer", true, "Amount in VES, <strong>whole numbers only</strong> — payouts are whole-VES by design (unlike PayIn, which accepts decimals). Minimum 1.", "^[1-9]\\d*$"],
       ["bank.name", "string", true, "Beneficiary's name, 3–50 characters.", "^[a-zA-Z0-9 ]{3,50}$"],
@@ -1701,11 +1703,11 @@ history, pass <code>start_date</code>/<code>end_date</code>; for deep listings u
 <a href="#payment-list">PayIn List</a>.</p>`,
     fieldsTitle: "Query parameters",
     fields: [
-      ["start_date", "date", false, "Filter start (<code>YYYY-MM-DD</code>). Must not be in the future.", "^\\d{4}-\\d{2}-\\d{2}$"],
-      ["end_date", "date", false, "Filter end (<code>YYYY-MM-DD</code>). Range limited to 92 days.", "^\\d{4}-\\d{2}-\\d{2}$"],
-      ["per_page", "integer", false, "Records per page: 10 – 5000. Default 5000.", "^\\d+$"],
-      ["page", "integer", false, "Classic page number (offset pagination).", "^[1-9]\\d*$"],
-      ["after_id", "integer", false, "Keyset cursor from the previous page's <code>X-Next-Cursor</code> header.", "^[1-9]\\d*$"],
+      ["start_date", "date", false, "Filter start date (<code>YYYY-MM-DD</code>). Defaults to today; must not be in the future.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["end_date", "date", false, "Filter end date (<code>YYYY-MM-DD</code>). Defaults to today; must not be in the future. The range may span at most <strong>92 days</strong>.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["per_page", "integer", false, "Records per page: 10–5000. Default 5000.", "^\\d+$"],
+      ["page", "integer", false, "Page number (offset pagination), starting at 1.", "^[1-9]\\d*$"],
+      ["after_id", "integer", false, "Keyset cursor: pass the <code>X-Next-Cursor</code> header from the previous page to fetch records after it.", "^[1-9]\\d*$"],
     ],
     responses: `<h4>Response <code>200</code></h4>
 <p>JSON array of payout objects. Headers <code>X-Next-Cursor</code> (next page cursor) and
@@ -1742,8 +1744,8 @@ history, pass <code>start_date</code>/<code>end_date</code>; for deep listings u
     method: "GET",
     path: "/v1.0/payout/order/{order}",
     title: "Get a payout by your order id",
-    desc: `Retrieves the most recent payout matching <strong>your own</strong> <code>order</code>
-identifier. Lookups cover the last <strong>180 days</strong>.`,
+    desc: `Retrieves the payout for <strong>your own</strong> <code>order</code> identifier. Each
+<code>order</code> is unique to one payout and cannot be reused.`,
     fieldsTitle: "Path parameters",
     fields: [
       ["order", "string", true, "Your payout identifier (the one you sent on Create).", "^[a-zA-Z0-9-]{1,99}$"],
@@ -1751,7 +1753,7 @@ identifier. Lookups cover the last <strong>180 days</strong>.`,
     responses: `<h4>Response <code>200</code></h4>
 <p>The <a href="#payout">payout object</a>.</p>
 <h4>Response <code>404</code></h4>
-<p>No payout with that order in the last 180 days.</p>`,
+<p>No payout found for that order.</p>`,
     pathParams: [["order", "PO-0001"]],
     tryit: { path: true },
   },
@@ -1781,10 +1783,10 @@ only</strong> (empty result = <code>200 []</code>) — pass
 <code>start_date</code>/<code>end_date</code> for history.`,
     fieldsTitle: "Query parameters",
     fields: [
-      ["start_date", "date", false, "Filter start (<code>YYYY-MM-DD</code>). Default: today.", "^\\d{4}-\\d{2}-\\d{2}$"],
-      ["end_date", "date", false, "Filter end (<code>YYYY-MM-DD</code>). Default: today.", "^\\d{4}-\\d{2}-\\d{2}$"],
-      ["per_page", "integer", false, "Records per page: 10 – 5000. Default 5000.", "^\\d+$"],
-      ["page", "integer", false, "Page number, starting at 1.", "^[1-9]\\d*$"],
+      ["start_date", "date", false, "Filter start date (<code>YYYY-MM-DD</code>). Defaults to today.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["end_date", "date", false, "Filter end date (<code>YYYY-MM-DD</code>). Defaults to today.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["per_page", "integer", false, "Records per page: 10–5000. Default 5000.", "^\\d+$"],
+      ["page", "integer", false, "Page number (offset pagination), starting at 1.", "^[1-9]\\d*$"],
       ["order", "string", false, "Sort by movement id: <code>ASC</code> or <code>DESC</code> (default).", "^(ASC|DESC)$"],
     ],
     responses: `<h4>Response <code>200</code></h4>
