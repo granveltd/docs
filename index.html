@@ -312,7 +312,7 @@
       <button class="group-toggle" aria-expanded="false" type="button">Wallet <span class="chev">▾</span></button>
       <div class="group-items">
         <a href="#wallet-balance" data-kw="wallet get /v1.0/wallet/balance balance saldo funds"><span class="m get">GET</span>Balance</a>
-        <a href="#wallet-list" data-kw="wallet get /v1.0/wallet list movements ledger income expense"><span class="m get">GET</span>List</a>
+        <a href="#wallet-list" data-kw="wallet get /v1.0/wallet list movements ledger credit debit"><span class="m get">GET</span>List</a>
         <a href="#wallet-get" data-kw="wallet get /v1.0/wallet/id movement by id"><span class="m get">GET</span>Get by id</a>
       </div>
     </div>
@@ -671,7 +671,7 @@ retry.</div>
   <tr><td><code>created</code> / <code>pending</code></td><td>Order created, waiting for the payer.</td></tr>
   <tr><td><code>processing</code> / <code>under_review</code> / <code>retrying</code></td><td>Payment being verified.</td></tr>
   <tr><td><code>completed</code></td><td>Payment confirmed. <code>payment.authorization</code> carries the bank reference.</td></tr>
-  <tr><td><code>declined</code> / <code>failed</code> / <code>attempts_exhausted</code></td><td>Payment did not complete.</td></tr>
+  <tr><td><code>declined</code> / <code>failed</code> / <code>attempts_exhausted</code></td><td>Payment did not complete. <code>payment.reason</code> carries the human-readable explanation.</td></tr>
   <tr><td><code>canceled_user</code> / <code>canceled_system</code></td><td>Canceled by the payer or by Granve.</td></tr>
   <tr><td><code>expired</code></td><td>The order expired before payment.</td></tr>
   <tr><td><code>voided</code> / <code>refunded</code> / <code>partially_refunded</code> / <code>disputed</code> / <code>chargeback</code></td><td>Post-payment states, set by Granve operations (compliance, support or the admin panel) — never by the payment flow itself. Treat them as read-only signals: they can appear on an order that was already <code>completed</code>.</td></tr>
@@ -687,7 +687,7 @@ retry.</div>
   "redirect_url": "{base_url}/{payment_method}/pi_00000000000000000000000000000000?signature=…",
   "merchant": {
     "order": "ORDER0001",
-    "subject": "Lorem ipsum dolor sit",
+    "description": "Lorem ipsum dolor sit",
     "amount": "100.00"
   },
   "payer": {
@@ -702,13 +702,12 @@ retry.</div>
     "fee": "0.00",
     "authorization": null,
     "reason": null,
-    "gateway": null,
     "type": "mobile_payment",
     "card": {
       "last4": null,
       "authorization_code": null,
       "installments": null,
-      "method": null
+      "brand": null
     },
     "settlement": {
       "id": null,
@@ -741,11 +740,10 @@ payout is accepted.</p>
 <div class="split">
 <div class="doc">
 <h3 style="margin-top:0">The payout object</h3>
-<p><code>wallet.payout</code> and <code>wallet.payout_tax</code> are the two wallet movements the
-payout generated: the payout amount and the fee. <code>payout_tax</code> is the fee (legacy field
-name — it is not a tax). <code>bank.method</code> is <code>mobile</code> or
+<p><code>wallet.payout</code> and <code>wallet.fee</code> are the two wallet movements the
+payout generated: the payout amount and the commission. <code>bank.method</code> is <code>mobile</code> or
 <code>transfer</code>.</p>
-<div class="note">System-generated <code>subject</code> values in these movements
+<div class="note">System-generated <code>description</code> values in these movements
 (e.g. <code>Cargo payout…</code>) are returned in Spanish.</div>
 <p><code>status</code> is one of:</p>
 <table>
@@ -753,7 +751,7 @@ name — it is not a tax). <code>bank.method</code> is <code>mobile</code> or
   <tr><td><code>created</code></td><td>Payout accepted and queued; wallet already debited.</td></tr>
   <tr><td><code>processing</code></td><td>Being executed against the bank.</td></tr>
   <tr><td><code>completed</code></td><td>Money delivered to the beneficiary.</td></tr>
-  <tr><td><code>declined</code> / <code>rejected</code></td><td>The bank refused the operation; the wallet is refunded.</td></tr>
+  <tr><td><code>declined</code></td><td>The bank refused the operation; the wallet is refunded.</td></tr>
   <tr><td><code>settlement_pending</code> / <code>settled</code></td><td>Settlement lifecycle states.</td></tr>
 </table>
 </div>
@@ -766,7 +764,7 @@ name — it is not a tax). <code>bank.method</code> is <code>mobile</code> or
   "created_at": "2026-01-01 00:00:00",
   "merchant": {
     "order": "PO-0001",
-    "subject": "Lorem ipsum payout",
+    "description": "Lorem ipsum payout",
     "amount": "100.00"
   },
   "beneficiary": {
@@ -785,17 +783,17 @@ name — it is not a tax). <code>bank.method</code> is <code>mobile</code> or
     "payout": {
       "id": "1000000000000002",
       "created_at": "2026-01-01 00:00:00",
-      "type": "expense",
-      "subject": "Cargo payout - 1000000000000002",
+      "type": "debit",
+      "description": "Cargo payout - 1000000000000002",
       "amount": "100.00",
       "currency": "VES",
-      "deposit": { "date": null, "amount": "0.00" }
+      "deposit": { "settled_at": null, "amount": "0.00" }
     },
-    "payout_tax": {
+    "fee": {
       "id": "1000000000000003",
       "created_at": "2026-01-01 00:00:00",
-      "type": "expense",
-      "subject": "Cargo tax payout",
+      "type": "debit",
+      "description": "Cargo tax payout",
       "amount": "1.00",
       "currency": "VES"
     }
@@ -816,7 +814,7 @@ is a <em>movement</em>. Balances and movements are per currency (<code>VES</code
 <div class="split">
 <div class="doc">
 <h3 style="margin-top:0">The movement object</h3>
-<p><code>type</code> is <code>income</code> (credits your balance) or <code>expense</code> (debits
+<p><code>type</code> is <code>credit</code> (increases your balance) or <code>debit</code> (decreases
 it). <code>balance</code> is the wallet balance right after this movement.</p>
 </div>
 <div class="codecol">
@@ -825,8 +823,8 @@ it). <code>balance</code> is the wallet balance right after this movement.</p>
   "id": "1000000000000002",
   "livemode": false,
   "created_at": "2026-01-01 00:00:00",
-  "type": "expense",
-  "subject": "Cargo payout - 1000000000000002",
+  "type": "debit",
+  "description": "Cargo payout - 1000000000000002",
   "amount": "100.00",
   "balance": "900.00",
   "currency": "VES"
@@ -1506,7 +1504,7 @@ const CREATE_BODY = {
   amount: "100.00",
   email: "user@example.com",
   order: "ORDER0001",
-  subject: "Lorem ipsum dolor sit",
+  description: "Lorem ipsum dolor sit",
   payer: {
     document: "V00000000",
     phone: "04120000000",
@@ -1544,7 +1542,7 @@ that is how double charges happen.</div>`,
       ["amount", "string | number", true, "Amount to charge. Decimal with up to 2 places; minimum <strong>5 VES</strong>.", "^\\d+(\\.\\d{1,2})?$"],
       ["email", "string", true, "Payer's email. Must be a valid address.", "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"],
       ["order", "string", true, "Your unique order identifier — letters, digits and hyphens, up to 50 characters. Reusing an existing value returns <code>409</code>.", "^[a-zA-Z0-9-]{1,50}$"],
-      ["subject", "string", true, "Description of the product or service — 2–100 characters: letters, digits and spaces. Accents are folded to plain letters (á→a, ñ→n); any other character is removed.", "^[a-zA-Z0-9 ]{2,100}$"],
+      ["description", "string", true, "Description of the product or service — 2–100 characters: letters, digits and spaces. Accents are folded to plain letters (á→a, ñ→n); any other character is removed.", "^[a-zA-Z0-9 ]{2,100}$"],
       ["payer", "object", false, "<p style='margin:0 0 6px'>The payer object — identity plus, when the customer already paid by mobile payment, the proof so Granve can <strong>verify it against the bank in the background</strong> instead of asking again on the hosted page. All sub-fields are optional:</p><div class='subfields'><div class='sf'><div class='sf-head'><code>document</code><span class='sf-fmt'>V00000000</span></div><div class='sf-desc'>Payer's document: type letter (V, E, J) + 7-10 digits.</div></div><div class='sf'><div class='sf-head'><code>phone</code><span class='sf-fmt'>04XXNNNNNNN</span></div><div class='sf-desc'>Payer's phone (prefixes 0412, 0414, 0416, 0422, 0424, 0426).</div></div><div class='sf'><div class='sf-head'><code>bank</code><span class='sf-fmt'>0102</span></div><div class='sf-desc'>4-digit bank code — one returned by <a href='#tools-banks'>GET /v1.0/banks</a>.</div></div><div class='sf'><div class='sf-head'><code>reference</code><span class='sf-fmt'>4-14 digits</span></div><div class='sf-desc'>Reference number of the mobile payment.</div></div><div class='sf'><div class='sf-head'><code>date</code><span class='sf-fmt'>YYYY-MM-DD</span></div><div class='sf-desc'>Date the payment was made.</div></div></div>"],
       ["metadata", "object", false, "Free key/value object you attach to the order — stored and echoed back inside <code>merchant.metadata</code> in every response. Up to 50 keys or 2&nbsp;KB."],
     ],
@@ -1677,7 +1675,7 @@ wallet was debited only once. Recover it with
     fieldsTitle: "Body parameters",
     fields: [
       ["order", "string", true, "Your unique payout identifier — letters, digits and hyphens, up to 99 characters. Reusing a value returns <code>409</code>.", "^[a-zA-Z0-9-]{1,99}$"],
-      ["subject", "string", true, "Concept of the payout — 5–200 characters: letters, digits and spaces. Accents are folded to plain letters (á→a, ñ→n); any other character is removed.", "^[a-zA-Z0-9 ]{5,200}$"],
+      ["description", "string", true, "Concept of the payout — 5–200 characters: letters, digits and spaces. Accents are folded to plain letters (á→a, ñ→n); any other character is removed.", "^[a-zA-Z0-9 ]{5,200}$"],
       ["amount", "integer", true, "Amount in VES, <strong>whole numbers only</strong> — payouts are whole-VES by design (unlike PayIn, which accepts decimals). Minimum 1.", "^[1-9]\\d*$"],
       ["beneficiary.name", "string", true, "Beneficiary's name, 3–50 characters.", "^[a-zA-Z0-9 ]{3,50}$"],
       ["beneficiary.document", "string", true, "Beneficiary's document: type letter (V, E, J) + 7–10 digits (e.g. <code>V00000000</code>).", "^[VEJ]\\d{7,10}$"],
@@ -1690,7 +1688,7 @@ wallet was debited only once. Recover it with
     ],
     body: {
       order: "PO-0001",
-      subject: "Lorem ipsum payout",
+      description: "Lorem ipsum payout",
       amount: 100,
       beneficiary: {
         name: "Lorem Ipsum",
