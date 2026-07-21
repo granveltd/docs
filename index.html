@@ -508,7 +508,7 @@ charge:</p>
 <pre><code>{
   "id": "pi_00000000000000000000000000000000",
   "livemode": false,
-  "status": "pending",
+  "status": "created",
   "created_at": "2026-01-01 00:00:00",
   "redirect_url": "{base_url}/{payment_method}/pi_000…?signature=…",
   "merchant": {
@@ -526,8 +526,18 @@ charge:</p>
   <tr><td>Production</td><td><code>https://api.granve.com</code></td></tr>
   <tr><td>Sandbox</td><td><code>https://api-sandbox.granve.com</code></td></tr>
 </table>
-<p>The Production endpoint creates real transactions. The Sandbox endpoint lets you test your
-integration without affecting real data.</p>
+<p>The Sandbox endpoint lets you test your integration without affecting real data.</p>
+<div class="danger"><strong>⚠ The base URL is the only thing that separates test from real money.</strong>
+Your credentials are identical on both environments — there is no test-only key. Point your code at
+<code>https://api.granve.com</code> and every order you create is a <strong>real transaction that
+moves real money</strong>, even if you meant to test.
+<ul>
+  <li class="no">Never hardcode the host per request. Keep it in a single config constant
+  (<code>BASE_URL</code>) that you flip once to go live.</li>
+  <li class="yes">Assert <code>livemode</code> on every response before trusting it —
+  <code>false</code> = Sandbox (safe), <code>true</code> = Production (real). If your test suite
+  ever sees <code>"livemode": true</code>, stop: you are hitting production.</li>
+</ul></div>
 
 <h2 id="authentication">Authentication</h2>
 <div class="split">
