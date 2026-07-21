@@ -161,6 +161,7 @@
   .subfields .sf-desc { font-size: 13px; margin-top: 1px; }
   .req { color: var(--err); font-size: 12px; font-weight: 600; }
   .opt { color: var(--fg2); font-size: 12px; }
+  .cond { color: var(--warn-border); font-size: 12px; font-weight: 600; }
   .note { background: var(--warn-bg); border: 1px solid var(--warn-border); border-radius: 8px; padding: 10px 14px; margin: 14px 0; font-size: 14px; }
   .danger { background: var(--danger-bg); border: 1px solid var(--danger-border); border-left: 4px solid var(--err); border-radius: 8px; padding: 12px 15px; margin: 14px 0; font-size: 14px; }
   .danger > strong:first-child { color: var(--err); }
@@ -324,7 +325,7 @@
     </div>
     <span class="nav-label">Resources</span>
     <a href="#webhooks" data-kw="webhooks notification callback return url redirect terminal retry">Webhooks &amp; return URL</a>
-    <a href="#errors" data-kw="errors validation invalid_request_error api_error date_invalid 400 401 404 409 failed">Errors</a>
+    <a href="#errors" data-kw="errors validation invalid_request api_error date_invalid auth_failed not_found 400 401 404 409 failed">Errors</a>
     <a href="#troubleshooting" data-kw="troubleshooting common issues failures 401 date_invalid signature clock cors debug">Troubleshooting</a>
     <a href="#changelog" data-kw="changelog versions release history">Changelog</a>
     <p class="nav-empty" id="nav-empty" hidden>No matches — try another term.</p>
@@ -500,7 +501,7 @@ charge:</p>
   "status": "pending",
   "created_at": "2026-01-01 00:00:00",
   "redirect_url": "{base_url}/{payment_method}/pi_000…?signature=…",
-  "commerce": {
+  "merchant": {
     "order": "ORDER0001",
     "amount": "100.00"
   }
@@ -537,7 +538,7 @@ for your account.</p>
 </table>
 
 <p>If the <code>X-Date</code> header is missing, malformed, not UTC or outside the ±5-minute window,
-the API answers <code>401</code> with <code>error.code = "DATE_INVALID"</code> — the exact body is
+the API answers <code>401</code> with <code>error.code = "date_invalid"</code> — the exact body is
 shown in <a href="#errors">Errors</a>.</p>
 
 <div class="danger"><strong>⚠ Never sign in the browser.</strong> Signing happens exclusively
@@ -589,7 +590,7 @@ completes normally.</p>
   <li><strong>Validation:</strong> send <code>amount</code> below the minimum or a malformed
   <code>phone</code>/<code>document</code> to exercise <code>400</code> responses.</li>
   <li><strong>Signature errors:</strong> send a stale <code>X-Date</code> (&gt;5 min old) to see the
-  <code>DATE_INVALID</code> response.</li>
+  <code>date_invalid</code> response.</li>
 </ul>
 <p>The <a href="#console-anchor">API console</a> below targets <strong>Sandbox</strong> by default; runs against Production stay behind an explicit checkbox.</p>
 
@@ -679,7 +680,7 @@ retry.</div>
   "status": "pending",
   "created_at": "2026-01-01 00:00:00",
   "redirect_url": "{base_url}/{payment_method}/pi_00000000000000000000000000000000?signature=…",
-  "commerce": {
+  "merchant": {
     "order": "ORDER0001",
     "subject": "Lorem ipsum dolor sit",
     "amount": "100.00"
@@ -690,8 +691,8 @@ retry.</div>
     "phone": "04120000000"
   },
   "payment": {
-    "start": null,
-    "end": null,
+    "started_at": null,
+    "ended_at": null,
     "amount": "0.00",
     "fee": "0.00",
     "authorization": null,
@@ -699,8 +700,8 @@ retry.</div>
     "gateway": null,
     "type": "mobile_payment",
     "card": {
-      "last4digits": null,
-      "authorizationcode": null,
+      "last4": null,
+      "authorization_code": null,
       "installments": null,
       "method": null
     }
@@ -753,20 +754,22 @@ name — it is not a tax). <code>bank.method</code> is <code>mobile</code> or
   "livemode": false,
   "status": "created",
   "created_at": "2026-01-01 00:00:00",
-  "commerce": {
-    "email": "user@example.com",
-    "phone": "04120000000",
+  "merchant": {
     "order": "PO-0001",
     "subject": "Lorem ipsum payout",
-    "amount": "100.00",
-    "bank": {
-      "name": "Lorem Ipsum",
-      "document": "V00000000",
-      "code": "0102",
-      "type": null,
-      "num": "04120000000",
-      "method": "mobile"
-    }
+    "amount": "100.00"
+  },
+  "beneficiary": {
+    "name": "Lorem Ipsum",
+    "document": "V00000000",
+    "email": "user@example.com",
+    "phone": "04120000000"
+  },
+  "bank": {
+    "code": "0102",
+    "type": null,
+    "num": "04120000000",
+    "method": "mobile"
   },
   "wallet": {
     "payout": {
@@ -914,41 +917,44 @@ authenticated query are the reliable channel.</p>
 
 <h2 id="errors">Errors</h2>
 <p>The HTTP status code is the primary signal (see the <a href="#introduction">status table</a>).
-Every error body follows the same envelope:</p>
+<strong>Every error — validation, auth, not-found, server — uses the same envelope:</strong></p>
 <pre><code>{
   "status": "failed",
   "error": {
-    "type": "invalid_request_error",
-    "message": {
-      "amount": "must be at least 5 VES",
-      "order": "required"
-    }
+    "code": "invalid_request",          // always present
+    "message": "Validation failed.",     // always a string
+    "fields": {                          // only on validation: per-field detail
+      "amount": "must be at least 5 VES"
+    },
+    "request_id": "req_…"               // always present — quote it in support requests
   }
 }</code></pre>
 <table>
-  <tr><th>error.type</th><th>Meaning</th></tr>
-  <tr><td><code>invalid_request_error</code></td><td>Your request failed validation — <code>error.message</code> lists each invalid field and the reason. Fix the request; do not retry as-is.</td></tr>
-  <tr><td><code>api_error</code></td><td>Something failed on Granve's side while processing a valid request. Safe to retry with backoff.</td></tr>
+  <tr><th>error.code</th><th>HTTP</th><th>Meaning</th></tr>
+  <tr><td><code>invalid_request</code></td><td><code>400</code> / <code>409</code></td><td>The request failed validation (or the <code>order</code> already exists). <code>error.fields</code> lists each invalid field. Fix it; do not retry as-is.</td></tr>
+  <tr><td><code>date_invalid</code></td><td><code>401</code></td><td>The <code>X-Date</code> header is missing, malformed or outside the ±5-minute window. Carries a <code>hint</code> and <code>example</code> timestamp.</td></tr>
+  <tr><td><code>auth_failed</code></td><td><code>401</code></td><td>Missing/invalid token or signature.</td></tr>
+  <tr><td><code>not_found</code></td><td><code>404</code></td><td>No resource matched.</td></tr>
+  <tr><td><code>api_error</code></td><td><code>500</code></td><td>Something failed on Granve's side while processing a valid request. Safe to retry with backoff.</td></tr>
 </table>
-<p>Authentication failures return <code>401</code>. A missing or invalid <code>X-Date</code>
-header has a dedicated code and a hint with a valid example timestamp:</p>
+<p><code>fields</code> appears <strong>only</strong> on validation (<code>400</code>/<code>409</code>);
+other errors carry just <code>code</code>, <code>message</code> and <code>request_id</code>. The
+<code>date_invalid</code> case adds a <code>hint</code> and a live <code>example</code>:</p>
 <pre><code id="code-dateinvalid">{
   "status": "failed",
   "error": {
-    "code": "DATE_INVALID",
+    "code": "date_invalid",
     "message": "The X-Date header is required.",
     "hint": "Send the X-Date header in UTC ISO-8601 with Z. Example (now): 2026-07-17T14:20:30Z",
     "example": "2026-07-17T14:20:30Z",
-    "request_id": "…"
+    "request_id": "req_…"
   }
 }</code></pre>
-<p>Lookups that match nothing return <code>404</code> with
-<code>{"status": "failed", "error": {"message": "not found"}}</code>.</p>
 
 <h2 id="troubleshooting">Troubleshooting</h2>
 <p>The failures integrators actually hit, with their causes and fixes.</p>
 
-<h3>401 with <code>error.code = "DATE_INVALID"</code></h3>
+<h3>401 with <code>error.code = "date_invalid"</code></h3>
 <p><strong>Cause:</strong> the <code>X-Date</code> header is outside the ±5-minute window, or is
 not UTC ISO-8601 with the explicit <code>Z</code> suffix. The most common culprits: a server
 clock that has drifted, or sending local time instead of UTC.</p>
@@ -1530,7 +1536,7 @@ that is how double charges happen.</div>`,
       ["order", "string", true, "Your unique order identifier — letters, digits and hyphens, up to 50 characters. Reusing an existing value returns <code>409</code>.", "^[a-zA-Z0-9-]{1,50}$"],
       ["subject", "string", true, "Description of the product or service — 2–100 characters: letters, digits and spaces. Accents are folded to plain letters (á→a, ñ→n); any other character is removed.", "^[a-zA-Z0-9 ]{2,100}$"],
       ["payer", "object", false, "<p style='margin:0 0 6px'>The payer object — identity plus, when the customer already paid by mobile payment, the proof so Granve can <strong>verify it against the bank in the background</strong> instead of asking again on the hosted page. All sub-fields are optional:</p><div class='subfields'><div class='sf'><div class='sf-head'><code>document</code><span class='sf-fmt'>V00000000</span></div><div class='sf-desc'>Payer's document: type letter (V, E, J) + 7-10 digits.</div></div><div class='sf'><div class='sf-head'><code>phone</code><span class='sf-fmt'>04XXNNNNNNN</span></div><div class='sf-desc'>Payer's phone (prefixes 0412, 0414, 0416, 0422, 0424, 0426).</div></div><div class='sf'><div class='sf-head'><code>bank</code><span class='sf-fmt'>0102</span></div><div class='sf-desc'>4-digit bank code — one returned by <a href='#tools-banks'>GET /v1.0/banks</a>.</div></div><div class='sf'><div class='sf-head'><code>reference</code><span class='sf-fmt'>4-14 digits</span></div><div class='sf-desc'>Reference number of the mobile payment.</div></div><div class='sf'><div class='sf-head'><code>date</code><span class='sf-fmt'>YYYY-MM-DD</span></div><div class='sf-desc'>Date the payment was made.</div></div></div>"],
-      ["metadata", "object", false, "Free key/value object you attach to the order — stored and echoed back inside <code>commerce.metadata</code> in every response. Up to 50 keys or 2&nbsp;KB."],
+      ["metadata", "object", false, "Free key/value object you attach to the order — stored and echoed back inside <code>merchant.metadata</code> in every response. Up to 50 keys or 2&nbsp;KB."],
     ],
     body: CREATE_BODY,
     responses: `<h4>Response <code>200</code></h4>
@@ -1539,20 +1545,20 @@ that is how double charges happen.</div>`,
 <pre><code>{
   "status": "failed",
   "error": {
-    "type": "invalid_request_error",
-    "message": {
-      "amount": "must be at least 5 VES"
-    }
+    "code": "invalid_request",
+    "message": "Validation failed.",
+    "fields": { "amount": "must be at least 5 VES" },
+    "request_id": "req_…"
   }
 }</code></pre>
 <h4>Response <code>409</code> — duplicate order</h4>
 <pre><code>{
   "status": "failed",
   "error": {
-    "type": "invalid_request_error",
-    "message": {
-      "order": "already exists"
-    }
+    "code": "invalid_request",
+    "message": "The request conflicts with an existing resource.",
+    "fields": { "order": "already exists" },
+    "request_id": "req_…"
   }
 }</code></pre>`,
     tryit: { bodyEditor: true },
@@ -1608,7 +1614,9 @@ more stable than <code>page</code> for deep listings.</p>`,
 <pre><code>{
   "status": "failed",
   "error": {
-    "message": "not found"
+    "code": "not_found",
+    "message": "Resource not found.",
+    "request_id": "req_…"
   }
 }</code></pre>`,
     pathParams: [["id", "pi_00000000000000000000000000000000"]],
@@ -1631,7 +1639,9 @@ more stable than <code>page</code> for deep listings.</p>`,
 <pre><code>{
   "status": "failed",
   "error": {
-    "message": "not found"
+    "code": "not_found",
+    "message": "Resource not found.",
+    "request_id": "req_…"
   }
 }</code></pre>`,
     pathParams: [["order", "ORDER0001"]],
@@ -1656,27 +1666,29 @@ wallet was debited only once. Recover it with
 <code>order</code> for a retry: that is how double withdrawals happen.</div>`,
     fieldsTitle: "Body parameters",
     fields: [
-      ["email", "string", true, "Beneficiary's email, up to 100 characters.", "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"],
-      ["phone", "string", true, "Beneficiary's phone, 11 digits (prefixes 0412, 0414, 0416, 0422, 0424, 0426).", "^(0412|0414|0416|0422|0424|0426)\\d{7}$"],
       ["order", "string", true, "Your unique payout identifier — letters, digits and hyphens, up to 99 characters. Reusing a value returns <code>409</code>.", "^[a-zA-Z0-9-]{1,99}$"],
       ["subject", "string", true, "Concept of the payout — 5–200 characters: letters, digits and spaces. Accents are folded to plain letters (á→a, ñ→n); any other character is removed.", "^[a-zA-Z0-9 ]{5,200}$"],
       ["amount", "integer", true, "Amount in VES, <strong>whole numbers only</strong> — payouts are whole-VES by design (unlike PayIn, which accepts decimals). Minimum 1.", "^[1-9]\\d*$"],
-      ["bank.name", "string", true, "Beneficiary's name, 3–50 characters.", "^[a-zA-Z0-9 ]{3,50}$"],
-      ["bank.document", "string", true, "Identity document: type letter (V, E, J) + 7–10 digits (e.g. <code>V00000000</code>).", "^[VEJ]\\d{7,10}$"],
-      ["bank.num", "string", true, "11-digit mobile number (Pago Móvil) or 20-digit account number (transfer).", "^((0412|0414|0416|0422|0424|0426)\\d{7}|\\d{20})$"],
-      ["bank.code", "string", false, "Bank code — <strong>required for Pago Móvil</strong> (11-digit num). Any code returned by <a href=\"#tools-banks\">GET /v1.0/banks</a>.", "^\\d{4}$"],
-      ["bank.type", "string", false, "Account type — <strong>required for transfers</strong> (20-digit num): <code>A</code> (savings) or <code>C</code> (checking).", "^[AC]$"],
+      ["beneficiary.name", "string", true, "Beneficiary's name, 3–50 characters.", "^[a-zA-Z0-9 ]{3,50}$"],
+      ["beneficiary.document", "string", true, "Beneficiary's document: type letter (V, E, J) + 7–10 digits (e.g. <code>V00000000</code>).", "^[VEJ]\\d{7,10}$"],
+      ["beneficiary.email", "string", true, "Beneficiary's email, up to 100 characters.", "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"],
+      ["beneficiary.phone", "string", true, "Beneficiary's phone, 11 digits (prefixes 0412, 0414, 0416, 0422, 0424, 0426).", "^(0412|0414|0416|0422|0424|0426)\\d{7}$"],
+      ["bank.num", "string", true, "Destination: 11-digit mobile number (Pago Móvil) or 20-digit account number (transfer). <strong>Polymorphic</strong> — its length selects the method.", "^((0412|0414|0416|0422|0424|0426)\\d{7}|\\d{20})$"],
+      ["bank.code", "string", "conditional", "<strong>Required for Pago Móvil</strong> (11-digit num) — any code from <a href=\"#tools-banks\">GET /v1.0/banks</a>. Ignored for transfers (derived from the account number).", "^\\d{4}$"],
+      ["bank.type", "string", "conditional", "<strong>Required for transfers</strong> (20-digit num): <code>A</code> (savings) or <code>C</code> (checking). Not used for Pago Móvil.", "^[AC]$"],
       ["metadata", "object", false, "Free key/value object you attach to the payout — stored and echoed back in every response."],
     ],
     body: {
-      email: "user@example.com",
-      phone: "04120000000",
       order: "PO-0001",
       subject: "Lorem ipsum payout",
       amount: 100,
-      bank: {
+      beneficiary: {
         name: "Lorem Ipsum",
         document: "V00000000",
+        email: "user@example.com",
+        phone: "04120000000",
+      },
+      bank: {
         num: "04120000000",
         code: "0102",
       },
@@ -1691,20 +1703,20 @@ wallet was debited only once. Recover it with
 <pre><code>{
   "status": "failed",
   "error": {
-    "type": "invalid_request_error",
-    "message": {
-      "bank_num": "must be 11 or 20 characters"
-    }
+    "code": "invalid_request",
+    "message": "Validation failed.",
+    "fields": { "bank.num": "must be 11 or 20 characters" },
+    "request_id": "req_…"
   }
 }</code></pre>
 <h4>Response <code>409</code> — duplicate order</h4>
 <pre><code>{
   "status": "failed",
   "error": {
-    "type": "invalid_request_error",
-    "message": {
-      "order": "already exists"
-    }
+    "code": "invalid_request",
+    "message": "The request conflicts with an existing resource.",
+    "fields": { "order": "already exists" },
+    "request_id": "req_…"
   }
 }</code></pre>`,
     tryit: { bodyEditor: true },
@@ -1782,13 +1794,16 @@ history, pass <code>start_date</code>/<code>end_date</code>; for deep listings u
     method: "GET",
     path: "/v1.0/wallet/balance",
     title: "Get your balance",
-    desc: `Returns your current wallet balance (VES).`,
+    desc: `Returns your wallet balance (VES): <code>available</code> (disbursable now) and <code>pending</code> (collected, not yet settled).`,
     responses: `<h4>Response <code>200</code></h4>
 <pre><code>{
-  "balance": "900.00",
+  "available": "900.00",
+  "pending": "150.00",
   "currency": "VES",
   "livemode": false
 }</code></pre>
+<p><code>available</code> is what you can disburse now; <code>pending</code> is PayIn money
+collected but not yet settled into your wallet.</p>
 <h4>Response <code>404</code></h4>
 <p>No wallet is provisioned yet for the account.</p>`,
     tryit: {},
@@ -1808,7 +1823,7 @@ only</strong> (empty result = <code>200 []</code>) — pass
       ["end_date", "date", false, "Filter end date (<code>YYYY-MM-DD</code>). Defaults to today.", "^\\d{4}-\\d{2}-\\d{2}$"],
       ["per_page", "integer", false, "Records per page: 10–5000. Default 5000.", "^\\d+$"],
       ["page", "integer", false, "Page number (offset pagination), starting at 1.", "^[1-9]\\d*$"],
-      ["order", "string", false, "Sort by movement id: <code>ASC</code> or <code>DESC</code> (default).", "^(ASC|DESC)$"],
+      ["sort", "string", false, "Sort by movement id: <code>ASC</code> or <code>DESC</code> (default).", "^(ASC|DESC)$"],
     ],
     responses: `<h4>Response <code>200</code></h4>
 <p>JSON array of movement objects. Headers <code>X-Page</code>, <code>X-Per-Page</code> and
@@ -1818,7 +1833,7 @@ only</strong> (empty result = <code>200 []</code>) — pass
       ["start_date", DATE_START],
       ["end_date", DATE_END],
       ["per_page", "50"],
-      ["order", "DESC"],
+      ["sort", "DESC"],
     ],
     tryit: { query: true },
   },
@@ -2023,7 +2038,7 @@ function renderAllSamples() {
 function fieldsTable(ep) {
   if (!ep.fields) return "";
   const rows = ep.fields.map(([name, type, req, desc, rx]) =>
-    `<tr><td><code class="fname">${name}</code><br><span class="${req ? "req" : "opt"}">${req ? "required" : "optional"}</span></td>` +
+    `<tr><td><code class="fname">${name}</code><br>${req === "conditional" ? '<span class="cond">conditional</span>' : `<span class="${req ? "req" : "opt"}">${req ? "required" : "optional"}</span>`}</td>` +
     `<td>${type}</td><td>${rx ? `<code class="rx">${esc(rx)}</code>` : "—"}</td><td>${desc}</td></tr>`).join("");
   return `<h4>${ep.fieldsTitle}</h4>
   <table><tr><th>Field</th><th>Type</th><th>Format (regex)</th><th>Description</th></tr>${rows}</table>`;
