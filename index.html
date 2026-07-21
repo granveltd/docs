@@ -371,6 +371,11 @@ working. Prefer the machine-readable contract? Download the
   <strong>America/Caracas time (UTC−4, no DST)</strong> — Venezuela's timezone, where all
   payments settle. Note this differs from the <code>X-Date</code> request header, which must be
   UTC.</li>
+  <li id="idempotency"><strong>Idempotency:</strong> your <code>order</code> is the idempotency
+  key on both <code>POST</code> endpoints. If a create request times out with no response,
+  <strong>retry with the same <code>order</code></strong> — a duplicate returns
+  <code>409</code> instead of creating a second payment or payout, so you never double-charge or
+  double-pay. Each <code>order</code> is unique to your account and cannot be reused.</li>
 </ul>
 
 <h2 id="quickstart">Quickstart</h2>
@@ -1522,7 +1527,7 @@ including the <code>redirect_url</code> where you must send your customer to pay
 <p>When the order reaches a terminal state, the result is delivered as described in
 <a href="#webhooks">Webhooks &amp; return URL</a>.</p>
 <div class="note"><strong>Idempotency on timeout:</strong> your <code>order</code> is the
-idempotency key. If a <code>POST /v1.0/payment</code> times out with no response, <strong>retry
+<a href="#idempotency">idempotency key</a>. If a <code>POST /v1.0/payment</code> times out with no response, <strong>retry
 with the same <code>order</code></strong>. A <code>409</code> means the first request already
 created it — never a duplicate; recover the order with
 <a href="#payment-get-order"><code>GET /v1.0/payment/order/{order}</code></a> to read its
@@ -1659,7 +1664,7 @@ selects Pago Móvil (then <code>bank.code</code> is required); a <strong>20-digi
 number</strong> selects bank transfer (then <code>bank.type</code> is required and the bank is taken
 from the account's first 4 digits).</p>
 <div class="note"><strong>Idempotency on timeout:</strong> your <code>order</code> is the
-idempotency key. If this request times out with no response, <strong>retry with the same
+<a href="#idempotency">idempotency key</a>. If this request times out with no response, <strong>retry with the same
 <code>order</code></strong> — a <code>409</code> means the first request already ran and your
 wallet was debited only once. Recover it with
 <a href="#payout-get-order"><code>GET /v1.0/payout/order/{order}</code></a>. Never generate a new
@@ -1676,7 +1681,7 @@ wallet was debited only once. Recover it with
       ["bank.num", "string", true, "Destination: 11-digit mobile number (Pago Móvil) or 20-digit account number (transfer). <strong>Polymorphic</strong> — its length selects the method.", "^((0412|0414|0416|0422|0424|0426)\\d{7}|\\d{20})$"],
       ["bank.code", "string", "conditional", "<strong>Required for Pago Móvil</strong> (11-digit num) — any code from <a href=\"#tools-banks\">GET /v1.0/banks</a>. Ignored for transfers (derived from the account number).", "^\\d{4}$"],
       ["bank.type", "string", "conditional", "<strong>Required for transfers</strong> (20-digit num): <code>A</code> (savings) or <code>C</code> (checking). Not used for Pago Móvil.", "^[AC]$"],
-      ["metadata", "object", false, "Free key/value object you attach to the payout — stored and echoed back in every response."],
+      ["metadata", "object", false, "Free key/value object you attach to the payout — stored and echoed back inside <code>merchant.metadata</code> in every response. Up to 50 keys or 2&nbsp;KB."],
     ],
     body: {
       order: "PO-0001",
@@ -1777,7 +1782,8 @@ history, pass <code>start_date</code>/<code>end_date</code>; for deep listings u
     path: "/v1.0/payout/order/{order}",
     title: "Get a payout by your order id",
     desc: `Retrieves the payout for <strong>your own</strong> <code>order</code> identifier. Each
-<code>order</code> is unique to one payout and cannot be reused.`,
+<code>order</code> is unique to one payout and cannot be reused. Lookups cover the last
+<strong>180 days</strong>.`,
     fieldsTitle: "Path parameters",
     fields: [
       ["order", "string", true, "Your payout identifier (the one you sent on Create).", "^[a-zA-Z0-9-]{1,99}$"],
@@ -1785,7 +1791,7 @@ history, pass <code>start_date</code>/<code>end_date</code>; for deep listings u
     responses: `<h4>Response <code>200</code></h4>
 <p>The <a href="#payout">payout object</a>.</p>
 <h4>Response <code>404</code></h4>
-<p>No payout found for that order.</p>`,
+<p>No payout found for that order, or the payout is older than 180 days.</p>`,
     pathParams: [["order", "PO-0001"]],
     tryit: { path: true },
   },
