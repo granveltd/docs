@@ -460,6 +460,7 @@ paths:
                 metadata:
                   type: object
                   additionalProperties: true
+                  description: "Free key/value object you attach to the payout — stored and echoed back inside merchant.metadata in every response. Up to 50 keys or 2 KB."
             example:
               order: "PO-0001"
               subject: "Lorem ipsum payout"
@@ -573,7 +574,7 @@ paths:
     get:
       tags: [Payment (PayOut)]
       summary: Get by order
-      description: Retrieves the payout for your own `order` identifier. Each `order` is unique to one payout and cannot be reused.
+      description: Retrieves the payout for your own `order` identifier. Each `order` is unique to one payout and cannot be reused. Lookups cover the last 180 days.
       parameters:
         - name: order
           in: path
@@ -890,10 +891,10 @@ components:
           type: string
           enum: [income, expense]
         subject: { type: string }
-        amount: { type: number }
+        amount: { type: string, description: "Decimal string (e.g. \"100.00\"). Never a JSON number — avoids float rounding." }
         balance:
-          type: number
-          description: "Wallet balance right after this movement."
+          type: string
+          description: "Wallet balance right after this movement, as a decimal string (e.g. \"900.00\")."
         currency: { type: string }
 
     PaymentOrder:
