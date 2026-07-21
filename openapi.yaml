@@ -959,6 +959,13 @@ components:
                 authorization_code: { type: string, nullable: true }
                 installments: { type: integer, nullable: true }
                 method: { type: string, nullable: true }
+            settlement:
+              type: object
+              description: "When this payment was settled into your wallet. Both fields are null until settlement."
+              properties:
+                id: { type: string, nullable: true, description: "Settlement identifier." }
+                settled_at: { type: string, nullable: true, description: "Settlement date (YYYY-MM-DD)." }
+            currency: { type: string, description: "ISO currency of the payment (VES)." }
 
   examples:
     PaymentOrderExample:
@@ -990,3 +997,7 @@ components:
             authorization_code: null
             installments: null
             method: null
+          settlement:
+            id: null
+            settled_at: null
+          currency: "VES"
