@@ -64,6 +64,12 @@ info:
     | Production   | https://api.granve.com            |
     | Sandbox      | https://api-sandbox.granve.com    |
 
+    ⚠ The base URL is the only thing that separates test from real money. Your credentials are
+    identical on both environments — there is no test-only key. A request to `https://api.granve.com`
+    creates a real transaction that moves real money, even from test code. Keep the host in a single
+    config constant, and assert `livemode` on every response: `false` = Sandbox (safe), `true` =
+    Production (real).
+
     ## Authentication
 
     Every request must include three headers:
