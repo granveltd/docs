@@ -187,35 +187,31 @@ paths:
                   maxLength: 100
                   pattern: '^[a-zA-Z0-9 ]{2,100}$'
                   description: "Description of the product or service — 2-100 characters: letters, digits and spaces. Accents are folded to plain letters (a-acute to a, enye to n); any other character is removed."
-                document:
-                  type: string
-                  pattern: '^[VEJ][0-9]{7,10}$'
-                  description: "Payer's identity document: type letter + digits (e.g. V00000000). Allowed types: V, E, J."
-                phone:
-                  type: string
-                  pattern: '^(0412|0414|0416|0422|0424|0426)[0-9]{7}$'
-                  description: "Payer's phone (e.g. 04120000000)."
-                additional_parameters:
+                metadata:
                   type: object
                   additionalProperties: true
-                  description: "Free key/value object echoed back inside commerce.additional_parameters in every response."
+                  description: "Free key/value object you attach to the order — stored and echoed back inside commerce.metadata in every response. Up to 50 keys or 2 KB."
                 payer:
                   type: object
-                  description: "Optional prefill for the background bank verification. All sub-fields optional."
+                  description: "The payer object: identity plus, when the customer already paid by mobile payment, the proof for background bank verification. All sub-fields optional."
                   properties:
-                    id_number: { type: string, pattern: '^[VJE][0-9]{5,9}$', description: "Payer's document: letter + 5-9 digits." }
-                    phone_number: { type: string, pattern: '^(0412|0414|0416|0422|0424|0426)[0-9]{7}$' }
-                    bank_code: { type: string, description: "A 4-digit code from GET /v1.0/banks." }
-                    payment_reference: { type: string, pattern: '^[0-9]{4,14}$' }
-                    payment_date: { type: string, format: date, description: "YYYY-MM-DD." }
+                    document: { type: string, pattern: '^[VEJ][0-9]{7,10}$', description: "Payer's document: type letter (V, E, J) + 7-10 digits." }
+                    phone: { type: string, pattern: '^(0412|0414|0416|0422|0424|0426)[0-9]{7}$' }
+                    bank: { type: string, description: "A 4-digit bank code from GET /v1.0/banks." }
+                    reference: { type: string, pattern: '^[0-9]{4,14}$' }
+                    date: { type: string, format: date, description: "YYYY-MM-DD." }
             example:
               payment: "YOURMETHODTOKEN"
               amount: "100.00"
               email: "user@example.com"
               order: "ORDER0001"
               subject: "Lorem ipsum dolor sit"
-              document: "V00000000"
-              phone: "04120000000"
+              payer:
+                document: "V00000000"
+                phone: "04120000000"
+                bank: "0102"
+                reference: "12345678"
+                date: "2026-01-01"
       responses:
         "200":
           description: Payment order created.
@@ -456,7 +452,7 @@ paths:
                       type: string
                       enum: [A, C]
                       description: "Account type — required for transfers: A (savings) or C (checking)."
-                additional_parameters:
+                metadata:
                   type: object
                   additionalProperties: true
             example:
@@ -470,6 +466,9 @@ paths:
                 document: "V00000000"
                 num: "04120000000"
                 code: "0102"
+              metadata:
+                customer_id: "cus_00123"
+                invoice: "INV-2026-014"
       responses:
         "200":
           description: Payout created (`status = created`).
@@ -603,9 +602,16 @@ paths:
           description: Current balance.
           content:
             application/json:
+              schema:
+                type: object
+                properties:
+                  balance: { type: string }
+                  currency: { type: string }
+                  livemode: { type: boolean }
               example:
-                balance: 900.00
+                balance: "900.00"
                 currency: "VES"
+                livemode: false
         "401":
           $ref: "#/components/responses/AuthError"
         "404":
@@ -735,7 +741,7 @@ paths:
       summary: List accepted banks
       description: |
         Returns the bank catalog accepted by the API. Every `code` is a valid value for
-        `bank.code` on Create a payout and for `payer.bank_code` on Create a payment
+        `bank.code` on Create a payout and for `payer.bank` on Create a payment
         order — and vice versa. The catalog rarely changes; cache it.
       parameters:
         - $ref: "#/components/parameters/HeaderAuthorization"
@@ -819,6 +825,9 @@ components:
         id:
           type: string
           description: "Public identifier of the payout (po_…)."
+        livemode:
+          type: boolean
+          description: "false in Sandbox, true in Production."
         status:
           type: string
           enum: [created, processing, completed, declined, rejected, settlement_pending, settled]
@@ -857,6 +866,7 @@ components:
       type: object
       properties:
         id: { type: string }
+        livemode: { type: boolean, description: "false in Sandbox, true in Production." }
         created_at: { type: string }
         type:
           type: string
@@ -874,6 +884,9 @@ components:
         id:
           type: string
           description: "Public identifier of the payment order (pi_…)."
+        livemode:
+          type: boolean
+          description: "false in Sandbox, true in Production."
         status:
           type: string
           description: >-
@@ -895,7 +908,7 @@ components:
             order: { type: string }
             subject: { type: string }
             amount: { type: string }
-            additional_parameters:
+            metadata:
               type: object
               additionalProperties: true
         payer:
@@ -932,6 +945,7 @@ components:
     PaymentOrderExample:
       value:
         id: "pi_00000000000000000000000000000000"
+        livemode: false
         status: "pending"
         created_at: "2026-01-01 00:00:00"
         redirect_url: "{base_url}/{payment_method}/pi_00000000000000000000000000000000?signature=…"
