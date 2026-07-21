@@ -151,7 +151,14 @@
   table { border-collapse: collapse; width: 100%; margin: 10px 0 18px; font-size: 14px; display: block; overflow-x: auto; }
   th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
   th { background: var(--bg2); font-weight: 600; }
-  td code { white-space: nowrap; }
+  td code { overflow-wrap: anywhere; }
+  td code.fname { white-space: nowrap; overflow-wrap: normal; }
+  td code.rx { word-break: break-word; font-size: 12px; }
+  .subfields { display: grid; gap: 9px; margin: 6px 0 2px; }
+  .subfields .sf { padding-left: 11px; border-left: 2px solid var(--accent); }
+  .subfields .sf-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+  .subfields .sf-fmt { font: 12px ui-monospace, Menlo, monospace; color: var(--fg2); }
+  .subfields .sf-desc { font-size: 13px; margin-top: 1px; }
   .req { color: var(--err); font-size: 12px; font-weight: 600; }
   .opt { color: var(--fg2); font-size: 12px; }
   .note { background: var(--warn-bg); border: 1px solid var(--warn-border); border-radius: 8px; padding: 10px 14px; margin: 14px 0; font-size: 14px; }
@@ -489,8 +496,8 @@ charge:</p>
 <h4>Response <code>200</code> (abridged)</h4>
 <pre><code>{
   "id": "pi_00000000000000000000000000000000",
-  "status": "pending",
   "livemode": false,
+  "status": "pending",
   "created_at": "2026-01-01 00:00:00",
   "redirect_url": "{base_url}/{payment_method}/pi_000…?signature=…",
   "commerce": {
@@ -668,8 +675,8 @@ retry.</div>
 <h4>Object example</h4>
 <pre><code>{
   "id": "pi_00000000000000000000000000000000",
-  "status": "pending",
   "livemode": false,
+  "status": "pending",
   "created_at": "2026-01-01 00:00:00",
   "redirect_url": "{base_url}/{payment_method}/pi_00000000000000000000000000000000?signature=…",
   "commerce": {
@@ -743,6 +750,7 @@ name — it is not a tax). <code>bank.method</code> is <code>mobile</code> or
 <h4>Object example</h4>
 <pre><code>{
   "id": "po_00000000000000000000000000000000",
+  "livemode": false,
   "status": "created",
   "created_at": "2026-01-01 00:00:00",
   "commerce": {
@@ -802,6 +810,7 @@ it). <code>balance</code> is the wallet balance right after this movement.</p>
 <h4>Object example</h4>
 <pre><code>{
   "id": "1000000000000002",
+  "livemode": false,
   "created_at": "2026-01-01 00:00:00",
   "type": "expense",
   "subject": "Cargo payout - 1000000000000002",
@@ -1482,8 +1491,17 @@ const CREATE_BODY = {
   email: "user@example.com",
   order: "ORDER0001",
   subject: "Lorem ipsum dolor sit",
-  document: "V00000000",
-  phone: "04120000000",
+  payer: {
+    document: "V00000000",
+    phone: "04120000000",
+    bank: "0102",
+    reference: "12345678",
+    date: "2026-01-01",
+  },
+  metadata: {
+    customer_id: "cus_00123",
+    invoice: "INV-2026-014",
+  },
 };
 
 const ENDPOINTS = [
@@ -1511,10 +1529,8 @@ that is how double charges happen.</div>`,
       ["email", "string", true, "Payer's email. Must be a valid address.", "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"],
       ["order", "string", true, "Your unique order identifier — letters, digits and hyphens, up to 50 characters. Reusing an existing value returns <code>409</code>.", "^[a-zA-Z0-9-]{1,50}$"],
       ["subject", "string", true, "Description of the product or service — 2–100 characters: letters, digits and spaces. Accents are folded to plain letters (á→a, ñ→n); any other character is removed.", "^[a-zA-Z0-9 ]{2,100}$"],
-      ["document", "string", false, "Payer's identity document: type letter + digits (e.g. <code>V00000000</code>). Allowed types: V, E, J.", "^[VEJ]\\d{7,10}$"],
-      ["phone", "string", false, "Payer's phone, format <code>04XXNNNNNNN</code> (prefixes 0412, 0414, 0416, 0422, 0424, 0426).", "^(0412|0414|0416|0422|0424|0426)\\d{7}$"],
-      ["additional_parameters", "object", false, "Free key/value object echoed back inside <code>commerce.additional_parameters</code> in every response."],
-      ["payer", "object", false, "Optional prefill for the background bank verification. All sub-fields are optional:<ul style='margin:6px 0 0;padding-left:18px'><li><code>id_number</code> — payer's document, letter + 5–9 digits (<code>^[VJE]\\d{5,9}$</code>)</li><li><code>phone_number</code> — <code>04XXNNNNNNN</code> (prefixes 0412, 0414, 0416, 0422, 0424, 0426)</li><li><code>bank_code</code> — a 4-digit code from <a href=\"#tools-banks\">GET /v1.0/banks</a></li><li><code>payment_reference</code> — 4–14 digits</li><li><code>payment_date</code> — <code>YYYY-MM-DD</code></li></ul>"],
+      ["payer", "object", false, "<p style='margin:0 0 6px'>The payer object — identity plus, when the customer already paid by mobile payment, the proof so Granve can <strong>verify it against the bank in the background</strong> instead of asking again on the hosted page. All sub-fields are optional:</p><div class='subfields'><div class='sf'><div class='sf-head'><code>document</code><span class='sf-fmt'>V00000000</span></div><div class='sf-desc'>Payer's document: type letter (V, E, J) + 7-10 digits.</div></div><div class='sf'><div class='sf-head'><code>phone</code><span class='sf-fmt'>04XXNNNNNNN</span></div><div class='sf-desc'>Payer's phone (prefixes 0412, 0414, 0416, 0422, 0424, 0426).</div></div><div class='sf'><div class='sf-head'><code>bank</code><span class='sf-fmt'>0102</span></div><div class='sf-desc'>4-digit bank code — one returned by <a href='#tools-banks'>GET /v1.0/banks</a>.</div></div><div class='sf'><div class='sf-head'><code>reference</code><span class='sf-fmt'>4-14 digits</span></div><div class='sf-desc'>Reference number of the mobile payment.</div></div><div class='sf'><div class='sf-head'><code>date</code><span class='sf-fmt'>YYYY-MM-DD</span></div><div class='sf-desc'>Date the payment was made.</div></div></div>"],
+      ["metadata", "object", false, "Free key/value object you attach to the order — stored and echoed back inside <code>commerce.metadata</code> in every response. Up to 50 keys or 2&nbsp;KB."],
     ],
     body: CREATE_BODY,
     responses: `<h4>Response <code>200</code></h4>
@@ -1650,7 +1666,7 @@ wallet was debited only once. Recover it with
       ["bank.num", "string", true, "11-digit mobile number (Pago Móvil) or 20-digit account number (transfer).", "^((0412|0414|0416|0422|0424|0426)\\d{7}|\\d{20})$"],
       ["bank.code", "string", false, "Bank code — <strong>required for Pago Móvil</strong> (11-digit num). Any code returned by <a href=\"#tools-banks\">GET /v1.0/banks</a>.", "^\\d{4}$"],
       ["bank.type", "string", false, "Account type — <strong>required for transfers</strong> (20-digit num): <code>A</code> (savings) or <code>C</code> (checking).", "^[AC]$"],
-      ["additional_parameters", "object", false, "Free key/value object stored with the payout."],
+      ["metadata", "object", false, "Free key/value object you attach to the payout — stored and echoed back in every response."],
     ],
     body: {
       email: "user@example.com",
@@ -1663,6 +1679,10 @@ wallet was debited only once. Recover it with
         document: "V00000000",
         num: "04120000000",
         code: "0102",
+      },
+      metadata: {
+        customer_id: "cus_00123",
+        invoice: "INV-2026-014",
       },
     },
     responses: `<h4>Response <code>200</code></h4>
@@ -1766,7 +1786,8 @@ history, pass <code>start_date</code>/<code>end_date</code>; for deep listings u
     responses: `<h4>Response <code>200</code></h4>
 <pre><code>{
   "balance": "900.00",
-  "currency": "VES"
+  "currency": "VES",
+  "livemode": false
 }</code></pre>
 <h4>Response <code>404</code></h4>
 <p>No wallet is provisioned yet for the account.</p>`,
@@ -1850,7 +1871,7 @@ for your account yet.</p>
     title: "List accepted banks",
     desc: `Returns the bank catalog accepted by the API. Every <code>code</code> in this list is
 a valid value for <code>bank.code</code> on <a href="#payout-create">Create a payout</a> and for
-<code>payer.bank_code</code> on <a href="#payment-create">Create a payment order</a> — and vice
+<code>payer.bank</code> on <a href="#payment-create">Create a payment order</a> — and vice
 versa. The catalog rarely changes; cache it and refresh on demand.`,
     responses: `<h4>Response <code>200</code></h4>
 <p>JSON array — one object per accepted bank, ordered by code.</p>
@@ -2002,8 +2023,8 @@ function renderAllSamples() {
 function fieldsTable(ep) {
   if (!ep.fields) return "";
   const rows = ep.fields.map(([name, type, req, desc, rx]) =>
-    `<tr><td><code>${name}</code><br><span class="${req ? "req" : "opt"}">${req ? "required" : "optional"}</span></td>` +
-    `<td>${type}</td><td>${rx ? `<code>${esc(rx)}</code>` : "—"}</td><td>${desc}</td></tr>`).join("");
+    `<tr><td><code class="fname">${name}</code><br><span class="${req ? "req" : "opt"}">${req ? "required" : "optional"}</span></td>` +
+    `<td>${type}</td><td>${rx ? `<code class="rx">${esc(rx)}</code>` : "—"}</td><td>${desc}</td></tr>`).join("");
   return `<h4>${ep.fieldsTitle}</h4>
   <table><tr><th>Field</th><th>Type</th><th>Format (regex)</th><th>Description</th></tr>${rows}</table>`;
 }
