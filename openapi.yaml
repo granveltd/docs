@@ -25,6 +25,9 @@ info:
     in America/Caracas time (UTC−4, no DST); the `X-Date` request header, in contrast, must
     be UTC.
 
+    Rate limit: 1200 requests/minute per IP. Every response carries `X-RateLimit-Limit` and
+    `X-RateLimit-Remaining`; exceeding the limit returns `429` with a `Retry-After` header.
+
     ## Quickstart
 
     Every integration follows the same path — build against **Sandbox**, then switch the base
@@ -369,8 +372,8 @@ paths:
         Manually re-sends the `completed` webhook of a payment whose delivery was never
         acknowledged. Self-authenticated by `{valid}` — it does not use the standard
         `Authorization`/`X-Date`/`X-Sign` headers. Only re-fires for successful orders from
-        the last 3 months whose webhook is still pending; always answers an empty 200 and
-        never reveals whether the order exists.
+        the last 3 months whose webhook is still pending; always answers 200 with an empty
+        array body ([]) and never reveals whether the order exists.
       parameters:
         - name: id
           in: path
