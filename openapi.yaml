@@ -156,9 +156,10 @@ paths:
         `redirect_url` where the customer must be sent to pay. Store the returned `id`:
         it identifies the order in every later query.
 
-        When the order reaches a terminal state, the result is delivered once to the webhook
-        URL registered for your account, and the payer is redirected to your registered
-        return URL with `?id=…&status=…&order=…` appended.
+        When the order reaches a terminal state, the result is delivered once to the `notify_url`
+        you set on this call, and the payer is redirected to your `return_url` with
+        `?id=…&status=…&order=…` appended. Both URLs are required — set a different pair per order
+        when one account serves several storefronts with separate backends.
 
         Idempotency on timeout: your `order` is the idempotency key. If this request times out
         with no response, retry with the same `order`. A `409` means the first request already
@@ -175,7 +176,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [payment, amount, email, order, description]
+              required: [payment, amount, email, order, description, return_url, notify_url]
               properties:
                 payment:
                   type: string
@@ -198,25 +199,46 @@ paths:
                   maxLength: 100
                   pattern: '^[a-zA-Z0-9 ]{2,100}$'
                   description: "Description of the product or service — 2-100 characters: letters, digits and spaces. Accents are folded to plain letters (a-acute to a, enye to n); any other character is removed."
-                metadata:
-                  type: object
-                  additionalProperties: true
-                  description: "Free key/value object you attach to the order — stored and echoed back inside merchant.metadata in every response. Up to 50 keys or 2 KB."
+                return_url:
+                  type: string
+                  format: uri
+                  maxLength: 255
+                  description: |
+                    Where the payer's browser is sent back after the hosted payment page, for this order.
+                    Any query string you include is kept — we add `?id=…&status=…&order=…` on top (so
+                    don't use `id`, `status` or `order` as your own parameter names). Must be an absolute
+                    `https` URL with no embedded credentials, up to 255 characters.
+                notify_url:
+                  type: string
+                  format: uri
+                  maxLength: 255
+                  description: |
+                    Where Granve POSTs this order's result when it reaches a terminal state. Same format
+                    rules as `return_url`, and your own query string is kept the same way.
                 payer:
                   type: object
-                  description: "The payer object: identity plus, when the customer already paid by mobile payment, the proof for background bank verification. All sub-fields optional."
+                  description: |
+                    The payer object: identity plus, when the customer already paid by mobile payment, the
+                    proof for background bank verification. Every sub-field is optional, but a sub-field
+                    that is present and malformed returns `400` — it is never silently dropped.
                   properties:
                     document: { type: string, pattern: '^[VEJ][0-9]{7,10}$', description: "Payer's document: type letter (V, E, J) + 7-10 digits." }
                     phone: { type: string, pattern: '^(0412|0414|0416|0422|0424|0426)[0-9]{7}$' }
                     bank: { type: string, description: "A 4-digit bank code from GET /v1.0/banks." }
                     reference: { type: string, pattern: '^[0-9]{4,14}$' }
-                    date: { type: string, format: date, description: "YYYY-MM-DD." }
+                    date: { type: string, format: date, description: "YYYY-MM-DD. Must not be in the future." }
+                metadata:
+                  type: object
+                  additionalProperties: true
+                  description: "Free key/value object you attach to the order — stored and echoed back inside merchant.metadata in every response. Up to 50 keys or 2 KB. Purely opaque: no key in here changes how the order is processed."
             example:
               payment: "YOURMETHODTOKEN"
               amount: "100.00"
               email: "user@example.com"
               order: "ORDER0001"
               description: "Lorem ipsum dolor sit"
+              return_url: "https://yourdomain.com/checkout/done?cart_id=6234&ref=abc123"
+              notify_url: "https://yourdomain.com/hooks/granve?source=web"
               payer:
                 document: "V00000000"
                 phone: "04120000000"
