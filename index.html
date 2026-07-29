@@ -1236,8 +1236,40 @@ function baseUrl() {
       $("#c-priv").value = "";
       $("#c-priv").placeholder = "●●●●●●●●  key loaded";
       state.textContent = "Key loaded ✓ — memory only, non-extractable; gone when you close or reload the page.";
+      fillPaymentMethod(state);
     } catch (err) {
       state.textContent = "Could not import the key: " + err.message;
+    }
+  }
+
+  /* `payment` venía con un placeholder que el API rechaza con 400 "unsupported payment method":
+     el Run de POST /v1.0/payment —el primero que prueba un integrador— no podía dar 200 tal como
+     se sirve la página. Con la clave ya cargada se puede leer el catálogo real de la cuenta y
+     sustituirlo, en los ejemplos copiables y en el editor del panel. Un fallo aquí deja el
+     placeholder y explica qué hacer a mano: nunca debe impedir usar la consola. */
+  async function fillPaymentMethod(state) {
+    const editors = [...document.querySelectorAll(".tryit .body-editor")]
+      .filter(t => t.value.includes(METHOD_PLACEHOLDER));
+    if (! editors.length && CREATE_BODY.payment !== METHOD_PLACEHOLDER) return;
+    try {
+      const date = cleanIsoNow();
+      const res = await fetch(baseUrl() + "/v1.0/payment-methods", {
+        headers: {
+          "Authorization": "Bearer " + $("#c-pub").value.trim(),
+          "X-Date": date,
+          "X-Sign": await signWithPrivateKey(date),
+        },
+      });
+      if (! res.ok) throw new Error("HTTP " + res.status);
+      const id = (await res.json())[0]?.id;
+      if (! id) throw new Error("no payment methods are enabled on this account");
+      CREATE_BODY.payment = id;
+      renderAllSamples();
+      editors.forEach(t => { t.value = t.value.replaceAll(METHOD_PLACEHOLDER, id); });
+      state.textContent += ` Payment method “${id}” filled in from your account.`;
+    } catch (err) {
+      state.textContent += ` Could not read your payment methods (${err.message}) — replace `
+        + `${METHOD_PLACEHOLDER} with an id from GET /v1.0/payment-methods before running POST /v1.0/payment.`;
     }
   }
   $("#c-priv-load").addEventListener("click", loadPrivKey);
@@ -1537,8 +1569,11 @@ function phpArray(obj) {
 }
 
 /* ----------------------------------------------------------- registry */
+// Un solo sitio define el placeholder: `fillPaymentMethod` lo sustituye por un id real de la
+// cuenta en cuanto hay clave cargada.
+const METHOD_PLACEHOLDER = "YOURMETHODTOKEN";
 const CREATE_BODY = {
-  payment: "YOURMETHODTOKEN",
+  payment: METHOD_PLACEHOLDER,
   amount: "100.00",
   email: "user@example.com",
   order: "ORDER0001",
@@ -1643,6 +1678,7 @@ more stable than <code>page</code> for deep listings.</p>`,
       ["start_date", DATE_START],
       ["end_date", DATE_END],
       ["per_page", "50"],
+      ["order", "DESC"],
       ["after_id", ""],
     ],
     tryit: { query: true },
@@ -1799,6 +1835,7 @@ history, pass <code>start_date</code>/<code>end_date</code>; for deep listings u
       ["start_date", DATE_START],
       ["end_date", DATE_END],
       ["per_page", "50"],
+      ["order", "DESC"],
       ["after_id", ""],
     ],
     tryit: { query: true },
@@ -2117,10 +2154,17 @@ function queryInputHtml(k, v) {
 function tryitHtml(ep) {
   // El pattern nativo reusa la MISMA regex de la columna Format del endpoint (sin anclas:
   // el atributo pattern ancla implícito) — un solo lugar define el formato.
+  // El atributo `pattern` se compila con el flag `v`, donde un `-` literal dentro de una clase
+  // debe ir escapado. `[a-zA-Z0-9-]` no compila, y ante un pattern inválido el navegador IGNORA
+  // el atributo entero: la validación de formato quedaba muerta en silencio (checkValidity()
+  // devolvía true con cualquier basura). Se escapa el guión que no forma rango — pegado a `]`
+  // o a `[` — sin tocar la regex que se muestra en la columna Format.
+  const vSafe = rx => rx.replace(/\[(?:[^\]\\]|\\.)*\]/g, cls =>
+    cls.replace(/([^\\[])-(?=\])/g, "$1\\-").replace(/^\[-/, "[\\-"));
   const patternFor = k => {
     const f = (ep.fields || []).find(f => f[0] === k);
     if (!f || !f[4]) return "";
-    const rx = f[4].replace(/^\^/, "").replace(/\$$/, "");
+    const rx = vSafe(f[4].replace(/^\^/, "").replace(/\$$/, ""));
     return ` pattern="${esc(rx)}" title="Format: ${esc(f[4])}"`;
   };
   let inner = "";
