@@ -303,6 +303,10 @@ paths:
           in: query
           description: "Page number (offset pagination), starting at 1."
           schema: { type: integer, minimum: 1 }
+        - name: order
+          in: query
+          description: "Sort direction by id: DESC (default) or ASC. The same filter is named `sort` on GET /v1.0/wallet."
+          schema: { type: string, enum: [ASC, DESC] }
         - name: after_id
           in: query
           description: "Keyset cursor: pass the X-Next-Cursor header from the previous page to fetch records after it."
@@ -550,6 +554,10 @@ paths:
           in: query
           description: "Page number (offset pagination), starting at 1."
           schema: { type: integer, minimum: 1 }
+        - name: order
+          in: query
+          description: "Sort direction by id: DESC (default) or ASC. The same filter is named `sort` on GET /v1.0/wallet."
+          schema: { type: string, enum: [ASC, DESC] }
         - name: after_id
           in: query
           description: "Keyset cursor: pass the X-Next-Cursor header from the previous page to fetch records after it."
