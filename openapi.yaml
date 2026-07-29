@@ -924,7 +924,9 @@ components:
       type: object
       properties:
         id: { type: string }
-        livemode: { type: boolean, description: "false in Sandbox, true in Production." }
+        livemode:
+          type: boolean
+          description: "false in Sandbox, true in Production. Only on the standalone movements of GET /v1.0/wallet and GET /v1.0/wallet/{id}: absent from the movements nested in a payout, where the parent object already carries it."
         created_at: { type: string }
         type:
           type: string
@@ -934,7 +936,7 @@ components:
         amount: { type: string, description: "Decimal string (e.g. \"100.00\"). Never a JSON number — avoids float rounding." }
         balance:
           type: string
-          description: "Wallet balance right after this movement, as a decimal string (e.g. \"900.00\")."
+          description: "Wallet balance right after this movement, as a decimal string (e.g. \"900.00\"). Only on the standalone movements of GET /v1.0/wallet and GET /v1.0/wallet/{id}: absent from the movements nested in a payout."
         currency: { type: string }
         deposit:
           type: object
