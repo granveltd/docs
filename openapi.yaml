@@ -166,6 +166,13 @@ paths:
         created it (never a duplicate) — recover it with `GET /v1.0/payment/order/{order}` to
         read its `id` and `redirect_url`. Never generate a new `order` for a retry: that is how
         double charges happen.
+
+        An `order` is consumed permanently, even when nothing is charged. A payment that ended
+        `declined`, `expired`, `canceled_user`, `canceled_system` or `attempts_exhausted` charged
+        nothing, but its `order` can never be reused — charging that customer again requires a NEW
+        `order`. This is the one case where a new `order` is correct, and it is safe because those
+        are settled outcomes, not unknown ones. The `409` tells you which case you are in: read
+        `error.hint`.
       parameters:
         - $ref: "#/components/parameters/HeaderAuthorization"
         - $ref: "#/components/parameters/HeaderDate"
@@ -437,6 +444,13 @@ paths:
         out, retry with the same `order` — a `409` means the first request already ran and
         your wallet was debited only once. Recover it with `GET /v1.0/payout/order/{order}`.
         Never generate a new `order` for a retry: that is how double withdrawals happen.
+
+        An `order` is consumed permanently, even when the payout does not pay. If a previous
+        payout ended `declined`, the amount was returned to your wallet and nothing was sent —
+        but its `order` can never be reused, so paying that beneficiary again requires a NEW
+        `order`. This is the one case where a new `order` is correct, and it is safe because
+        `declined` is a settled outcome, not an unknown one. The `409` tells you which case you
+        are in: read `error.hint`.
       parameters:
         - $ref: "#/components/parameters/HeaderAuthorization"
         - $ref: "#/components/parameters/HeaderDate"
