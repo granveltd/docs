@@ -380,7 +380,13 @@ working. Prefer the machine-readable contract? Download the
   key on both <code>POST</code> endpoints. If a create request times out with no response,
   <strong>retry with the same <code>order</code></strong> — a duplicate returns
   <code>409</code> instead of creating a second payment or payout, so you never double-charge or
-  double-pay. Each <code>order</code> is unique to your account and cannot be reused.</li>
+  double-pay. Each <code>order</code> is unique to your account and cannot be reused — <strong>not even
+  when nothing was charged</strong>. If a payment or payout ends in a settled failure
+  (<code>declined</code>, <code>expired</code>, <code>canceled_user</code>,
+  <code>canceled_system</code>, <code>attempts_exhausted</code>), no money moved but the
+  <code>order</code> stays consumed: charging or paying again needs a <strong>new</strong>
+  <code>order</code>. The <code>409</code> tells you which case you are in — read
+  <code>error.hint</code>.</li>
 </ul>
 
 <h2 id="quickstart">Quickstart</h2>
@@ -1610,7 +1616,15 @@ with the same <code>order</code></strong>. A <code>409</code> means the first re
 created it — never a duplicate; recover the order with
 <a href="#payment-get-order"><code>GET /v1.0/payment/order/{order}</code></a> to read its
 <code>id</code> and <code>redirect_url</code>. Never generate a new <code>order</code> for a retry:
-that is how double charges happen.</div>`,
+that is how double charges happen.</div>
+<div class="note"><strong>When a new <code>order</code> IS correct:</strong> an <code>order</code> is
+consumed permanently, even when nothing is charged. A payment that ended <code>declined</code>,
+<code>expired</code>, <code>canceled_user</code>, <code>canceled_system</code> or
+<code>attempts_exhausted</code> charged nothing, but its <code>order</code> can never be reused —
+charging that customer again requires a <strong>new</strong> <code>order</code>. This is safe because
+those are <em>settled</em> outcomes, not unknown ones: the rule above protects you from retrying
+something that may have succeeded. The <code>409</code> distinguishes the two cases in
+<code>error.hint</code>.</div>`,
     fieldsTitle: "Body parameters",
     fields: [
       ["payment", "string", true, "Id of the payment method to charge with — list the ones enabled for your account with <a href=\"#tools-methods\">GET /v1.0/payment-methods</a>.", "^[A-Za-z0-9_-]+$"],
@@ -1749,7 +1763,14 @@ from the account's first 4 digits).</p>
 <code>order</code></strong> — a <code>409</code> means the first request already ran and your
 wallet was debited only once. Recover it with
 <a href="#payout-get-order"><code>GET /v1.0/payout/order/{order}</code></a>. Never generate a new
-<code>order</code> for a retry: that is how double withdrawals happen.</div>`,
+<code>order</code> for a retry: that is how double withdrawals happen.</div>
+<div class="note"><strong>When a new <code>order</code> IS correct:</strong> an <code>order</code> is
+consumed permanently, even when the payout does not pay. If a previous payout ended
+<code>declined</code>, the amount was returned to your wallet and nothing was sent — but its
+<code>order</code> can never be reused, so paying that beneficiary again requires a
+<strong>new</strong> <code>order</code>. This is safe because <code>declined</code> is a
+<em>settled</em> outcome, not an unknown one. The <code>409</code> distinguishes the two cases in
+<code>error.hint</code>.</div>`,
     fieldsTitle: "Body parameters",
     fields: [
       ["order", "string", true, "Your unique payout identifier — letters, digits and hyphens, up to 99 characters. Reusing a value returns <code>409</code>.", "^[a-zA-Z0-9-]{1,99}$"],
