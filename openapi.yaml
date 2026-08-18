@@ -228,12 +228,27 @@ paths:
                     The payer object: identity plus, when the customer already paid by mobile payment, the
                     proof for background bank verification. Every sub-field is optional, but a sub-field
                     that is present and malformed returns `400` — it is never silently dropped.
+
+                    Two of these are read wrong often enough to call out: `bank` is the bank the payer
+                    paid FROM (not the one on the payment page), and `date` is the receipt date in
+                    Venezuela time (UTC-4), not your server's date.
                   properties:
-                    document: { type: string, pattern: '^[VEJ][0-9]{7,10}$', description: "Payer's document: type letter (V, E, J) + 7-10 digits." }
-                    phone: { type: string, pattern: '^(0412|0414|0416|0422|0424|0426)[0-9]{7}$' }
-                    bank: { type: string, description: "A 4-digit bank code from GET /v1.0/banks." }
-                    reference: { type: string, pattern: '^[0-9]{4,14}$' }
-                    date: { type: string, format: date, description: "YYYY-MM-DD. Must not be in the future." }
+                    document: { type: string, pattern: '^[VEJ][0-9]{7,11}$', description: "Payer's document: type letter (V, E, J) + 7-11 digits. Values that match the shape but mean nothing — all-same digits, ascending or descending runs, repeating patterns — are rejected." }
+                    phone: { type: string, pattern: '^(0412|0414|0416|0422|0424|0426)[0-9]{7}$', description: "The phone the payer sent the transfer FROM. Same nonsense checks as document." }
+                    bank: {
+                      type: string,
+                      description: "4-digit code of the payer's **issuing** bank — the bank the transfer was sent FROM, not the bank shown on the payment page. Take it from GET /v1.0/banks."
+                    }
+                    reference: {
+                      type: string,
+                      pattern: '^[0-9]{4,20}$',
+                      description: "The transfer reference from the payer's receipt, 4 to 20 digits. Send it in full: only the LAST 14 are kept, because every bank matches by suffix — trimming from the left does not shorten a reference, it turns it into a different one. It must not equal the phone or the document."
+                    }
+                    date: {
+                      type: string,
+                      format: date,
+                      description: "Date on the payer's receipt, YYYY-MM-DD, **in Venezuela time (UTC-4)**. This is not your server's date: a backend running in UTC is already on the next day after 20:00 in Caracas, and that date is rejected as being in the future. Must not be in the future."
+                    }
                 metadata:
                   type: object
                   additionalProperties: true
@@ -249,7 +264,9 @@ paths:
               payer:
                 document: "V00000000"
                 phone: "04120000000"
-                bank: "0102"
+                # Issuing bank — deliberately different from the receiving bank so the two are not
+                # mistaken for one another.
+                bank: "0105"
                 reference: "12345678"
                 date: "2026-01-01"
       responses:
