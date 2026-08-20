@@ -896,7 +896,7 @@ compliance team — email <a href="mailto:hola@granve.com">hola@granve.com</a> t
 
 <table>
   <tr><th>Object</th><th><code>id</code></th><th>Fires when</th><th><code>status</code> arrives as</th></tr>
-  <tr><td><a href="#payin">Payment order</a></td><td><code>pi_…</code></td><td>The order reaches a terminal state</td><td><code>completed</code>, <code>attempts_exhausted</code>, <code>expired</code>, <code>canceled_user</code></td></tr>
+  <tr><td><a href="#payin">Payment order</a></td><td><code>pi_…</code></td><td>The order reaches a terminal state — or a <a href="#host2host-failures">host2host verification fails</a></td><td><code>completed</code>, <code>attempts_exhausted</code>, <code>expired</code>, <code>canceled_user</code>, <code>declined</code>, <code>under_review</code>, <code>created</code></td></tr>
   <tr><td><a href="#payout">Payout</a></td><td><code>po_…</code></td><td>The payout is processed by the bank</td><td><code>completed</code>, <code>declined</code></td></tr>
 </table>
 
@@ -909,6 +909,9 @@ compliance team — email <a href="mailto:hola@granve.com">hola@granve.com</a> t
   <tr><td><code>status</code></td><td>Status at notification time (see the table above).</td></tr>
   <tr><td><code>order</code></td><td>Your own identifier, exactly as you sent it on Create.</td></tr>
   <tr><td><code>livemode</code></td><td><code>true</code>/<code>false</code> — which environment fired the webhook (JSON body only).</td></tr>
+  <tr><td><code>reason</code></td><td>Machine code, JSON body only. Present only when a <a href="#host2host-failures">verification failed</a>. Not to be confused with <code>payment.reason</code> in the payment object, which is a sentence for display.</td></tr>
+  <tr><td><code>retryable</code></td><td>Boolean, JSON body only. Sent with <code>reason</code>: whether the same payment data may still succeed.</td></tr>
+  <tr><td><code>attempts_left</code></td><td>Integer, JSON body only. Sent when the order is still open: validation attempts the payer has left.</td></tr>
 </table>
 
 <pre><code>POST https://your-webhook.example.com/granve?id=pi_000…&amp;status=completed&amp;order=ORDER0001
@@ -922,6 +925,46 @@ X-Sign: 3f1a…64 hex…
   "order": "ORDER0001",
   "livemode": true
 }</code></pre>
+
+<h3 id="host2host-failures">When a host2host verification fails</h3>
+<p>An order created with an attached <code>payer</code> proof is verified against the bank
+server-to-server, with no payer at a screen. If that verification does not succeed you are told
+straight away, instead of waiting for the order to expire. Two shapes, and the difference is
+what you should do about it:</p>
+
+<table>
+  <tr><th><code>retryable</code></th><th>The order</th><th>What it means</th></tr>
+  <tr><td><code>true</code></td><td>stays open, <code>status</code> arrives as <code>created</code></td>
+      <td>The same data may still succeed — most often the bank has not reflected the transfer yet.
+      Send the payer to <code>redirect_url</code>; <code>attempts_left</code> says how many tries remain.</td></tr>
+  <tr><td><code>false</code></td><td>is closed, <code>status</code> arrives as <code>declined</code></td>
+      <td>The data will never verify. Release stock or seats now — this is an ordinary terminal
+      <code>declined</code> delivery with one extra field explaining the cause.</td></tr>
+</table>
+
+<pre><code>{
+  "id": "pi_00000000000000000000000000000000",
+  "status": "created",
+  "order": "ORDER0001",
+  "livemode": true,
+  "reason": "payment_not_found",
+  "retryable": true,
+  "attempts_left": 2
+}</code></pre>
+
+<p><code>reason</code> is one of <code>payment_not_found</code>, <code>bank_unavailable</code>,
+<code>amount_mismatch</code>, <code>reference_mismatch</code>, <code>reference_in_use</code>,
+<code>identity_mismatch</code>, <code>bank_not_supported</code>, <code>invalid_proof</code>,
+<code>order_not_payable</code>, <code>service_unavailable</code>, <code>busy</code>,
+<code>internal_error</code> or <code>verification_error</code>. Switch on the code, not on any
+wording. <strong>New codes may be added</strong> — branch on <code>retryable</code> so a code you
+have never seen still lands on the right path.</p>
+
+<div class="note"><strong>A <code>created</code> notification is not a failure of the order.</strong>
+If your integration treats every webhook as final, check for <code>reason</code> before acting: that
+order is still alive and still payable. And closing an unpaid order never consumes your customer's
+transfer — a bank reference is only locked once it has paid a <em>completed</em> order, so the same
+payment can be attached to a new order.</div>
 
 <h3>Delivery rules — the same for every notification</h3>
 <div class="split">
@@ -1981,11 +2024,22 @@ for your account yet.</p>
     "name": "Lorem Ipsum",
     "description": "Lorem ipsum dolor sit amet",
     "type": "mobile_payment",
-    "currency": "VES"
+    "currency": "VES",
+    "host2host": true
   }
 ]</code></pre>
 <p><code>type</code> is one of <code>mobile_payment</code>, <code>bank_transfer</code> or
-<code>card</code>.</p>`,
+<code>card</code>.</p>
+<p><code>host2host</code> tells you whether <strong>your account</strong> can attach the payment
+proof on that method and skip the hosted page — that is, whether sending a complete
+<code>payer</code> object on <a href="#payment-create">Create</a> makes Granve verify it with the
+bank (<code>202</code>) instead of only returning a <code>redirect_url</code> (<code>200</code>).
+Two switches decide it: the method has to be offered with host2host, and your account has to be
+enabled for it — so <code>false</code> means either one. Check it here rather than assuming: it is
+per method <em>and</em> per account. To have it enabled, write to
+<a href="mailto:hola@granve.com">hola@granve.com</a>.</p>
+<p>When a host2host verification does not succeed you are notified straight away — see
+<a href="#host2host-failures">When a host2host verification fails</a>.</p>`,
     tryit: {},
   },
   {
