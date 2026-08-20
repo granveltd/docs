@@ -117,9 +117,14 @@ info:
     **One action, every object.** When an object reaches its final state, Granve sends a
     `POST` to the webhook URL registered for your account — same payload, acknowledgment
     and retry policy for every object type; only the trigger depends on the object:
-    a **payment order** (`pi_…`) notifies on reaching a terminal state (`completed`,
-    `attempts_exhausted`, `expired`, `canceled_user`); a **payout** (`po_…`) notifies when
-    it is processed (`completed`, `declined`).
+    a **payment order** (`pi_…`) notifies on reaching a terminal state — `completed`,
+    `attempts_exhausted`, `expired`, `canceled_user`, and `declined` when a host2host
+    verification fails for good; a **payout** (`po_…`) notifies when it is processed
+    (`completed`, `declined`). Two more can reach a payment order without it being over:
+    `under_review`, when a charge was sent to the bank and its outcome could not be
+    established — a person resolves it, and the eventual `completed` or `declined` still
+    arrives — and `created`, the host2host notice described below. The full list is the `status` enum of
+    `PaymentWebhook`.
 
     The payload is `id`, `status` and `order` (query string + JSON body) plus `livemode`
     (body only). Every delivery is signed over its body: headers `X-Date` (UTC ISO-8601 Z)
@@ -133,6 +138,65 @@ info:
     `GET /v1.0/payment/notify/{id}/valid/{valid}` with `{valid}` =
     HMAC_SHA256(id, your_private_token). The authenticated GET remains the source of
     truth.
+
+    ### Verification failed (host2host only)
+
+    A payment created with an attached `payer` proof is verified against the bank
+    server-to-server, with no payer at a screen. When that verification does **not**
+    succeed and the order is still payable, Granve sends an extra notification so you are
+    not left waiting for a terminal state that may be hours away:
+
+    ```json
+    {
+      "id": "pi_…", "status": "created", "order": "ORD-1", "livemode": true,
+      "reason": "payment_not_found",
+      "retryable": true,
+      "attempts_left": 2
+    }
+    ```
+
+    **`status` is the order's real status, not a failure label** — the order is still open
+    and `GET /v1.0/payment/{id}` will report exactly the same value. The presence of
+    `reason` is what marks the delivery as a failure notice; the fields are additive and
+    every other delivery is unchanged.
+
+    **Only accounts with host2host enabled ever receive it.** If your integration treats
+    any webhook as final, check for `reason` before acting: an order reported as `created`
+    has not failed — it still has `attempts_left` attempts through the checkout
+    `redirect_url`.
+
+    **In the webhook body, `reason` is a stable code**, one of: `payment_not_found` (the
+    bank does not show the transfer — it may simply not be reflected yet),
+    `bank_unavailable`, `amount_mismatch`, `reference_mismatch`, `reference_in_use`,
+    `identity_mismatch`, `bank_not_supported`, `invalid_proof`, `order_not_payable`,
+    `service_unavailable`, `busy`, `internal_error`, `verification_error`. Switch on it;
+    it does not change wording.
+
+    Do not confuse it with **`payment.reason`** inside the `GET /v1.0/payment/{id}`
+    response, which is a human-readable sentence meant for display. Same word, two
+    surfaces: the webhook carries the code you automate on, the payment object carries the
+    message you show someone.
+
+    **`retryable` tells you whether the same data can still succeed**, and it decides what
+    happens to the order:
+
+    - **`retryable: true`** — transient, most often `payment_not_found`: a transfer the bank
+      has not reflected yet. The order **stays open** with `attempts_left` attempts. Treat it
+      as "not yet", not as "no". In production this resolves in under 5 minutes in every
+      measured case (median ~1 min), so a short hold is usually all it takes; send the payer
+      to `redirect_url` to complete it.
+    - **`retryable: false`** — the data itself is the problem and will never verify. The order
+      is **closed immediately as `declined`**, carrying the same `reason` field, so you can
+      release stock or seats in the same second instead of waiting for the 6-hour expiry.
+      That is an ordinary terminal `declined` delivery with one extra field explaining the
+      cause — if you already handle `declined`, there is nothing new to implement.
+
+    Closing an unpaid order does **not** consume the payer's transfer: a bank reference is only
+    locked once it has paid a *completed* order. If your customer did transfer and the order was
+    declined on a data mismatch, the same payment can be attached to a new order.
+
+    Delivery follows the same rules, keyed by `id`+`status`+`event`, so this notification
+    never displaces the terminal one that follows.
 
     The payer's browser is also redirected to your registered return URL with the same
     three parameters. UX signal only.
@@ -297,6 +361,62 @@ paths:
                   request_id: "req_…"
         "500":
           description: Internal server error.
+
+      callbacks:
+        paymentStatus:
+          '{$request.body#/notify_url}':
+            post:
+              summary: Payment status notification
+              description: >-
+                Sent when the order reaches a terminal state, and — for orders created with an
+                attached `payer` proof (host2host) — also when a verification fails while the
+                order is still payable. One delivery per `id`+`status`. Acknowledge with HTTP
+                200 exactly; anything else counts as a failed delivery and is retried.
+              parameters:
+                - name: X-Date
+                  in: header
+                  required: true
+                  description: "UTC ISO-8601 with Z. Reject deliveries older than 5 minutes."
+                  schema: { type: string, format: date-time }
+                - name: X-Sign
+                  in: header
+                  required: true
+                  description: >-
+                    HMAC_SHA256(X-Date + "." + raw_body, your_private_token). Recompute over the
+                    received X-Date and the exact raw body, then compare in constant time.
+                  schema: { type: string }
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/PaymentWebhook'
+                    examples:
+                      completed:
+                        summary: Payment confirmed
+                        value: { id: "pi_…", status: completed, order: "ORD-1", livemode: true }
+                      verificationFailedRetryable:
+                        summary: Host2host verification failed — order still open
+                        value:
+                          id: "pi_…"
+                          status: created
+                          order: "ORD-1"
+                          livemode: true
+                          reason: payment_not_found
+                          retryable: true
+                          attempts_left: 2
+                      verificationFailedFinal:
+                        summary: Host2host verification failed for good — order closed
+                        value:
+                          id: "pi_…"
+                          status: declined
+                          order: "ORD-1"
+                          livemode: true
+                          reason: amount_mismatch
+                          retryable: false
+              responses:
+                "200":
+                  description: Acknowledged.
 
     get:
       tags: [Payment (PayIn)]
@@ -805,12 +925,22 @@ paths:
                       type: string
                       enum: [mobile_payment, bank_transfer, card]
                     currency: { type: string }
+                    host2host:
+                      type: boolean
+                      description: >-
+                        Whether **your account** can attach the payment proof on this method and
+                        skip the hosted page — that is, whether sending a complete `payer` object
+                        on Create makes Granve verify it with the bank (`202`) instead of only
+                        returning a `redirect_url` (`200`). Two switches decide it: the method must
+                        be offered with host2host, and your account must be enabled for it, so
+                        `false` means either one. Write to hola@granve.com to have it enabled.
               example:
                 - id: "LOREMIPSUMP2C"
                   name: "Lorem Ipsum"
                   description: "Lorem ipsum dolor sit amet"
                   type: "mobile_payment"
                   currency: "VES"
+                  host2host: true
         "401":
           $ref: "#/components/responses/AuthError"
 
@@ -975,6 +1105,83 @@ components:
           properties:
             settled_at: { type: string, nullable: true, description: "Deposit date (YYYY-MM-DD); null until deposited." }
             amount: { type: string, description: "Deposited amount as a decimal string (\"0.00\" until deposited)." }
+
+    PaymentFailureReason:
+      type: string
+      description: >-
+        Stable machine code explaining why a verification did not succeed. Switch on this
+        value; the wording of human-facing messages may change, these codes do not.
+        Distinct from `payment.reason` in the payment object, which is a sentence meant for
+        display. New codes may be added over time — use `retryable` to handle a code you do
+        not recognise yet.
+      enum:
+        - payment_not_found
+        - bank_unavailable
+        - amount_mismatch
+        - reference_mismatch
+        - reference_in_use
+        - identity_mismatch
+        - bank_not_supported
+        - invalid_proof
+        - order_not_payable
+        - service_unavailable
+        - busy
+        - internal_error
+        - verification_error
+
+    PaymentWebhook:
+      type: object
+      description: >-
+        Body delivered to your `notify_url`. The same three values are also appended to the
+        URL as a query string; the body is what the `X-Sign` signature covers.
+      required: [id, status, order, livemode]
+      properties:
+        id:
+          type: string
+          description: "Public identifier of the payment order (pi_…)."
+          example: "pi_9f2c1d4e6a7b8c9d0e1f2a3b4c5d6e7f"
+        status:
+          type: string
+          description: >-
+            The order's status at the moment of delivery, identical to what
+            `GET /v1.0/payment/{id}` reports. `created` means the order is still open and
+            payable — see `reason`.
+          enum: [completed, declined, attempts_exhausted, canceled_user, expired, under_review, created]
+        order:
+          type: string
+          description: "Your own order identifier, as sent on create."
+        livemode:
+          type: boolean
+          description: "false in sandbox. Body only — never in the query string."
+        reason:
+          nullable: true
+          description: >-
+            Present only when a verification failed. Absent or null on ordinary terminal
+            deliveries such as `completed`.
+          allOf:
+            - $ref: '#/components/schemas/PaymentFailureReason'
+        retryable:
+          type: boolean
+          description: >-
+            Present alongside `reason`. `true` means the same payment data may still succeed
+            — typically the bank has not reflected the transfer yet — and the order is left
+            open. `false` means the data will never verify and the order was closed as
+            `declined` in the same delivery. Prefer this flag over hard-coding which
+            `reason` codes are terminal.
+        attempts_left:
+          type: integer
+          minimum: 0
+          description: >-
+            Present when the order is still open. Validation attempts remaining for the payer
+            through `redirect_url`.
+      example:
+        id: "pi_9f2c1d4e6a7b8c9d0e1f2a3b4c5d6e7f"
+        status: created
+        order: "ORD-1"
+        livemode: true
+        reason: payment_not_found
+        retryable: true
+        attempts_left: 2
 
     PaymentOrder:
       type: object
