@@ -715,8 +715,8 @@ retry.</div>
   },
   "payer": {
     "email": "user@example.com",
-    "document": "V00000000",
-    "phone": "04120000000"
+    "document": "V15427089",
+    "phone": "04125837194"
   },
   "payment": {
     "started_at": null,
@@ -996,9 +996,16 @@ payment can be attached to a new order.</div>
 <h3>Manual re-notification (payments)</h3>
 <p>If you need the <code>completed</code> webhook of a payment re-sent (e.g. your endpoint was down
 past the recovery window), you can request it yourself:</p>
-<pre><code>GET /v1.0/payment/notify/{id}/valid/{valid}
+<pre><code>GET /v1.0/payment/notify/{id}/valid/{valid}?expires={unix}
 
-{valid} = HMAC_SHA256({id}, your_private_token)   // hex</code></pre>
+{valid} = HMAC_SHA256({id} + "." + {expires}, your_private_token)   // hex</code></pre>
+<p><code>expires</code> is a Unix timestamp at most <strong>15 minutes</strong> in the future.
+Past it the request is rejected, so the URL stops working instead of staying valid for as long as
+the order is reachable. Build it right before you use it.</p>
+<p class="note"><strong>Deprecated:</strong> the older form without <code>expires</code>
+(<code>{valid} = HMAC_SHA256({id}, your_private_token)</code>) is still accepted, but it never
+expired — and since the signature travels in the path, it ends up in every access log the URL
+passes through. Add <code>expires</code> and include it in the HMAC input.</p>
 <p>It only re-fires for successful orders from the last 3 months whose webhook was never
 acknowledged, and always answers <code>200</code> with an empty array body (<code>[]</code>) —
 it never confirms whether the order exists.</p>
@@ -1628,13 +1635,8 @@ const CREATE_BODY = {
   order: "ORDER0001",
   description: "Lorem ipsum dolor sit",
   payer: {
-<<<<<<< HEAD
     document: "V15427089",
     phone: "04125837194",
-=======
-    document: "V00000000",
-    phone: "04120000000",
->>>>>>> origin/master
     bank: "0102",
     reference: "12345678",
     date: "2026-01-01",
@@ -1680,11 +1682,7 @@ something that may have succeeded. The <code>409</code> distinguishes the two ca
       ["email", "string", true, "Payer's email. Must be a valid address.", "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"],
       ["order", "string", true, "Your unique order identifier — letters, digits and hyphens, up to 50 characters. Reusing an existing value returns <code>409</code>.", "^[a-zA-Z0-9-]{1,50}$"],
       ["description", "string", true, "Description of the product or service — 2–100 characters: letters, digits and spaces. Accents are folded to plain letters (á→a, ñ→n); any other character is removed.", "^[a-zA-Z0-9 ]{2,100}$"],
-<<<<<<< HEAD
       ["payer", "object", false, "<p style='margin:0 0 6px'>The payer object — identity plus, when the customer already paid by mobile payment, the proof so Granve can <strong>verify it against the bank in the background</strong> instead of asking again on the hosted page. Every sub-field is optional, but a sub-field that is <strong>present and malformed returns <code>400</code></strong> — it is never silently dropped:</p><div class='subfields'><div class='sf'><div class='sf-head'><code>document</code><span class='sf-fmt'>V15427089</span></div><div class='sf-desc'>Payer's document: type letter (V, E, J) + 7-10 digits.</div></div><div class='sf'><div class='sf-head'><code>phone</code><span class='sf-fmt'>04XXNNNNNNN</span></div><div class='sf-desc'>Payer's phone (prefixes 0412, 0414, 0416, 0422, 0424, 0426).</div></div><div class='sf'><div class='sf-head'><code>bank</code><span class='sf-fmt'>0102</span></div><div class='sf-desc'>4-digit bank code — one returned by <a href='#tools-banks'>GET /v1.0/banks</a>.</div></div><div class='sf'><div class='sf-head'><code>reference</code><span class='sf-fmt'>4-14 digits</span></div><div class='sf-desc'>Reference number of the mobile payment.</div></div><div class='sf'><div class='sf-head'><code>date</code><span class='sf-fmt'>YYYY-MM-DD</span></div><div class='sf-desc'>Date the payment was made. Must not be in the future.</div></div></div>"],
-=======
-      ["payer", "object", false, "<p style='margin:0 0 6px'>The payer object — identity plus, when the customer already paid by mobile payment, the proof so Granve can <strong>verify it against the bank in the background</strong> instead of asking again on the hosted page. Every sub-field is optional, but a sub-field that is <strong>present and malformed returns <code>400</code></strong> — it is never silently dropped:</p><div class='subfields'><div class='sf'><div class='sf-head'><code>document</code><span class='sf-fmt'>V00000000</span></div><div class='sf-desc'>Payer's document: type letter (V, E, J) + 7-10 digits.</div></div><div class='sf'><div class='sf-head'><code>phone</code><span class='sf-fmt'>04XXNNNNNNN</span></div><div class='sf-desc'>Payer's phone (prefixes 0412, 0414, 0416, 0422, 0424, 0426).</div></div><div class='sf'><div class='sf-head'><code>bank</code><span class='sf-fmt'>0102</span></div><div class='sf-desc'>4-digit bank code — one returned by <a href='#tools-banks'>GET /v1.0/banks</a>.</div></div><div class='sf'><div class='sf-head'><code>reference</code><span class='sf-fmt'>4-14 digits</span></div><div class='sf-desc'>Reference number of the mobile payment.</div></div><div class='sf'><div class='sf-head'><code>date</code><span class='sf-fmt'>YYYY-MM-DD</span></div><div class='sf-desc'>Date the payment was made. Must not be in the future.</div></div></div>"],
->>>>>>> origin/master
       ["return_url", "string", true, "Where the payer's browser is sent back after the hosted payment page, <strong>for this order</strong>. Any query string you include is kept — we add <code>?id=…&amp;status=…&amp;order=…</code> on top (so don't use <code>id</code>, <code>status</code> or <code>order</code> as your own parameter names). Must be an absolute <code>https</code> URL with no embedded credentials, up to 255 characters.", "^https://.{1,247}$"],
       ["notify_url", "string", true, "Where Granve <code>POST</code>s this order's result when it reaches a terminal state (see <a href=\"#webhooks\">Webhooks</a>). Same format rules as <code>return_url</code>, and your own query string is kept the same way.", "^https://.{1,247}$"],
       ["metadata", "object", false, "Free key/value object you attach to the order — stored and echoed back inside <code>merchant.metadata</code> in every response. Up to 50 keys or 2&nbsp;KB. Purely opaque: no key inside <code>metadata</code> changes how the order is processed."],
