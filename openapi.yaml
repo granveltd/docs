@@ -296,17 +296,29 @@ paths:
                 payer:
                   type: object
                   description: |
-                    The payer object: identity plus, when the customer already paid by mobile payment, the
-                    proof for background bank verification. Every sub-field is optional, but a sub-field
-                    that is present and malformed returns `400` — it is never silently dropped.
+                    Who is paying and — when they already paid by mobile payment — the proof of it.
+                    Two independent uses; send either, both, or neither.
+
+                    **1. Anchor an identity you already have.** If the customer is signed in to your
+                    store and you already hold their document and phone, send them with the order.
+                    The hosted payment page renders those fields **pre-filled and read-only**, so the
+                    payer cannot pay under an identity other than the one you declared — and the bank
+                    check that runs afterwards has something to match the transfer against. This works
+                    on its own: you do not need `reference` or `date` for it.
+
+                    **2. Skip the page for a payment already made.** Add `bank`, `reference` and
+                    `date` and Granve verifies the transfer against the bank in the background,
+                    instead of sending the customer to type what they already typed at their bank.
+
+                    Every sub-field is optional, but a sub-field that is present and malformed
+                    returns `400` — it is never silently dropped.
 
                     Two of these are read wrong often enough to call out: `bank` is the bank the payer
                     paid FROM (not the one on the payment page), and `date` is the receipt date in
                     Venezuela time (UTC-4), not your server's date.
 
                     These fields go **inside** `payer` — sending `document` or `phone` at the top
-                    level of the body returns `400`. What you send here is pre-filled and **locked**
-                    on the hosted payment page, so the payer cannot change the identity you declared.
+                    level of the body returns `400`.
                   properties:
                     document: { type: string, pattern: '^[VEJ][0-9]{7,11}$', description: "Payer's document: type letter (V, E, J) + 7-11 digits. Values that match the shape but mean nothing — all-same digits, ascending or descending runs, repeating patterns — are rejected." }
                     phone: { type: string, pattern: '^(0412|0414|0416|0422|0424|0426)[0-9]{7}$', description: "The phone the payer sent the transfer FROM. Same nonsense checks as document." }
@@ -633,7 +645,7 @@ paths:
                     document:
                       type: string
                       pattern: '^[VEJ][0-9]{7,10}$'
-                      description: "Type letter (V, E, J) + 7–10 digits (e.g. V00000000)."
+                      description: "Type letter (V, E, J) + 7–10 digits (shape: V12XXXXXX — send the real one, not this)."
                     email: { type: string, format: email, maxLength: 100 }
                     phone:
                       type: string
