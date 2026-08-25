@@ -1,0 +1,2493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Granve API — Documentation</title>
+<meta name="description" content="Granve REST API documentation — create payment orders, query transactions and test every endpoint live from your browser.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.granve.com https://api-sandbox.granve.com; base-uri 'none'; form-action 'none'">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232d2d5b'/%3E%3Ctext x='32' y='45' font-size='38' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EG%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --bg2: #f6f8fa; --fg: #1f2328; --fg2: #59636e;
+    --border: #d1d9e0; --accent: #0969da; --accent-fg: #ffffff; --btn-bg: #0550ae;
+    --ok: #1a7f37; --err: #d1242f; --warn-bg: #fff8c5; --warn-border: #d4a72c;
+    --danger-bg: #ffebe9; --danger-border: #ffb1a8;
+    --code-bg: #f6f8fa; --sidebar-w: 250px;
+    --method-get: #1a7f37; --method-post: #9a6700;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --bg2: #151b23; --fg: #f0f6fc; --fg2: #9198a1;
+      --border: #3d444d; --accent: #4493f8; --accent-fg: #ffffff; --btn-bg: #1f6feb;
+      --ok: #3fb950; --err: #f85149; --warn-bg: #3a3000; --warn-border: #9e6a03;
+      --danger-bg: #2d1215; --danger-border: #6e2a30;
+      --code-bg: #151b23;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--fg); font-size: 15px; line-height: 1.6;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  #content a { text-decoration: underline; text-underline-offset: 2px; }
+  code, pre, textarea.body-editor, input.mono {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; font-size: 13px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+  pre code { background: none; border: none; padding: 0; }
+
+  /* Layout */
+  html { scroll-behavior: smooth; }
+  h1, h2, h3, section[id] { scroll-margin-top: 66px; }
+  #sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+    background: var(--bg2); border-right: 1px solid var(--border); overflow-y: auto; padding: 18px 0;
+    z-index: 30;
+  }
+  /* Contenido centrado en el espacio a la derecha del sidebar; min-width:0
+     en la columna para que los <pre> scrolleen dentro y no ensanchen la página. */
+  #main { margin-left: var(--sidebar-w); display: flex; justify-content: center; padding: 28px 40px 80px; }
+  #content { width: 100%; max-width: 960px; min-width: 0; }
+
+  /* Layout de dos paneles (doc | código) en pantallas anchas, estilo referencia */
+  .split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; margin: 14px 0; }
+  .codecol {
+    --bg: #0d1117; --bg2: #161b22; --fg: #e6edf3; --fg2: #9198a1;
+    --border: #30363d; --code-bg: #161b22; --accent: #4493f8; --btn-bg: #1f6feb;
+    background: #0d1117; border: 1px solid #30363d; border-radius: 12px;
+    padding: 14px 18px 18px; color: var(--fg); min-width: 0;
+  }
+  .codecol h3, .codecol h4 { color: var(--fg); margin-top: 6px; }
+  .codecol pre { background: var(--code-bg); border-color: var(--border); }
+  .split > .doc { min-width: 0; }
+  .split > .doc > :first-child { margin-top: 0; }
+  @media (min-width: 1200px) {
+    #content { max-width: 1560px; }
+    .split { grid-template-columns: minmax(0, 1fr) minmax(340px, 46%); align-items: start; }
+    .split > .doc { order: 1; }
+    .split > .codecol { order: 2; position: sticky; top: 24px; }
+  }
+  #topbar { display: none; }
+  #scrim { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 25; }
+  #scrim.show { display: block; }
+  #to-top {
+    position: fixed; right: 16px; bottom: 16px; z-index: 40;
+    width: 46px; height: 46px; border-radius: 50%; border: none;
+    background: var(--btn-bg); color: var(--accent-fg);
+    font-size: 20px; line-height: 1; cursor: pointer; display: none;
+    box-shadow: 0 4px 14px rgba(0,0,0,.3);
+  }
+  #to-top.show { display: block; }
+  @media (max-width: 900px) {
+    #topbar {
+      display: flex; align-items: center; gap: 10px;
+      position: fixed; top: 0; left: 0; right: 0; height: 52px; z-index: 20;
+      background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 12px;
+    }
+    #topbar .brand { font-weight: 700; font-size: 16px; }
+    #topbar .brand span { color: var(--accent); }
+    #menu-btn {
+      font-size: 20px; line-height: 1; padding: 7px 12px; border: 1px solid var(--border);
+      border-radius: 8px; background: var(--bg); color: var(--fg); cursor: pointer;
+    }
+    #sidebar {
+      width: 280px; max-width: 85vw; transform: translateX(-105%);
+      transition: transform .22s ease; box-shadow: 4px 0 24px rgba(0,0,0,.25);
+    }
+    #sidebar.open { transform: translateX(0); }
+    #main { margin-left: 0; padding: 70px 16px 80px; }
+    pre { font-size: 12.5px; }
+  }
+  #sidebar .brand { font-weight: 700; font-size: 18px; padding: 0 18px 10px; display: flex; align-items: center; gap: 6px; }
+  #sidebar .brand span { color: var(--accent); }
+  .lang-pill {
+    font-size: 11px; font-weight: 600; color: var(--fg2); border: 1px solid var(--border);
+    border-radius: 999px; padding: 2px 9px; white-space: nowrap; cursor: default;
+  }
+  #sidebar .brand .lang-pill { margin-left: auto; }
+  .nav-search { padding: 0 14px 10px; }
+  .nav-search input {
+    width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px;
+    background: var(--bg); color: var(--fg); font-size: 13px;
+  }
+  #sidebar nav a { display: block; padding: 5px 18px 5px 15px; color: var(--fg2); font-size: 14px; border-left: 3px solid transparent; }
+  #sidebar nav a.active {
+    color: var(--accent); font-weight: 600; border-left-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+  .group-toggle.active-group { color: var(--accent); }
+  #sidebar nav a:hover { color: var(--fg); text-decoration: none; background: var(--border); }
+  .group-toggle {
+    display: flex; align-items: center; justify-content: space-between; width: 100%;
+    margin: 2px 0; padding: 5px 18px 5px 15px; border: none; background: none; cursor: pointer;
+    font-size: 14px; color: var(--fg2); border-left: 3px solid transparent;
+    font-weight: 400; font-family: inherit; text-align: left;
+  }
+  .group-toggle:hover { color: var(--fg); }
+  .nav-label {
+    display: block; margin: 12px 0 2px; padding: 4px 18px;
+    font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--fg2); font-weight: 600;
+  }
+  #nav > a + .nav-label { margin-top: 18px; }
+  .group-toggle .chev { transition: transform .15s ease; font-size: 12px; }
+  .navgroup.collapsed .group-items { display: none; }
+  .navgroup.collapsed .chev { transform: rotate(-90deg); }
+  .nav-hidden { display: none !important; }
+  .nav-empty { padding: 8px 18px; font-size: 13px; color: var(--fg2); font-style: italic; }
+  #sidebar nav a .m { font-size: 10px; font-weight: 700; margin-right: 6px; }
+  .m.get { color: var(--method-get); } .m.post { color: var(--method-post); }
+
+  h1 { font-size: 30px; margin: 0 0 4px; }
+  h2 { font-size: 22px; margin: 48px 0 12px; padding-top: 18px; border-top: 1px solid var(--border); }
+  h3 { font-size: 17px; margin: 28px 0 8px; }
+  h4 { font-size: 14px; margin: 20px 0 6px; }
+  .sub { color: var(--fg2); margin: 0 0 18px; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0 18px; font-size: 14px; display: block; overflow-x: auto; }
+  th, td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
+  th { background: var(--bg2); font-weight: 600; }
+  td code { overflow-wrap: anywhere; }
+  td code.fname { white-space: nowrap; overflow-wrap: normal; }
+  td code.rx { word-break: break-word; font-size: 12px; }
+  .subfields { display: grid; gap: 9px; margin: 6px 0 2px; }
+  .subfields .sf { padding-left: 11px; border-left: 2px solid var(--accent); }
+  .subfields .sf-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+  .subfields .sf-fmt { font: 12px ui-monospace, Menlo, monospace; color: var(--fg2); }
+  .subfields .sf-desc { font-size: 13px; margin-top: 1px; }
+  .req { color: var(--err); font-size: 12px; font-weight: 600; }
+  .opt { color: var(--fg2); font-size: 12px; }
+  .cond { color: var(--warn-border); font-size: 12px; font-weight: 600; }
+  .note { background: var(--warn-bg); border: 1px solid var(--warn-border); border-radius: 8px; padding: 10px 14px; margin: 14px 0; font-size: 14px; }
+  .danger { background: var(--danger-bg); border: 1px solid var(--danger-border); border-left: 4px solid var(--err); border-radius: 8px; padding: 12px 15px; margin: 14px 0; font-size: 14px; }
+  .danger > strong:first-child { color: var(--err); }
+  .danger ul { list-style: none; margin: 9px 0; padding: 0; }
+  .danger li { position: relative; padding-left: 24px; margin: 5px 0; }
+  .danger li::before { position: absolute; left: 3px; font-weight: 700; }
+  .danger li.no::before { content: "✗"; color: var(--err); }
+  .danger li.yes::before { content: "✓"; color: var(--ok); }
+  /* Quickstart */
+  .qs-flow { width: 100%; max-width: 680px; height: auto; display: block; margin: 20px auto 6px; }
+  .qs-flow .box { fill: var(--bg2); stroke: var(--border); }
+  .qs-flow .actor { fill: var(--fg); font: 600 12.5px system-ui, -apple-system, sans-serif; text-anchor: middle; }
+  .qs-flow .life { stroke: var(--border); stroke-dasharray: 4 4; }
+  .qs-flow .msg { stroke: var(--fg2); fill: none; }
+  .qs-flow .ret { stroke-dasharray: 5 4; }
+  .qs-flow .lbl { fill: var(--fg2); font: 11px system-ui, -apple-system, sans-serif; text-anchor: middle; }
+  .qs-steps { margin: 26px 0 8px; }
+  .qs-step { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 0 16px; position: relative; padding-bottom: 26px; }
+  .qs-step::before { content: ""; position: absolute; left: 16px; top: 38px; bottom: 4px; width: 2px; background: var(--border); border-radius: 2px; }
+  .qs-step:last-child { padding-bottom: 0; }
+  .qs-step:last-child::before { display: none; }
+  .qs-n { width: 33px; height: 33px; border-radius: 50%; background: var(--accent); color: var(--accent-fg); font-weight: 700; font-size: 15px; display: flex; align-items: center; justify-content: center; }
+  .qs-step h3 { margin: 5px 0 7px; font-size: 16.5px; }
+  .qs-step p { margin: 7px 0; }
+  .qs-step .note { margin: 10px 0 0; }
+  .qs-check { list-style: none; padding: 0; margin: 14px 0 6px; }
+  .qs-check li { position: relative; padding: 10px 14px 10px 40px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg2); margin-bottom: 8px; }
+  .qs-check li::before { content: "✓"; position: absolute; left: 14px; top: 9px; color: var(--accent); font-weight: 700; }
+  .endpoint-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  .badge { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 6px; color: var(--accent-fg); }
+  .badge.post { background: var(--method-post); } .badge.get { background: var(--method-get); }
+  .path { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px; font-weight: 600; }
+
+  /* Console */
+  #console {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; margin: 22px 0;
+  }
+  #console h3 { margin: 0 0 10px; font-size: 15px; }
+  #console .row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  #console label { font-size: 12px; font-weight: 600; color: var(--fg2); display: block; margin-bottom: 3px; }
+  #console input, #console select {
+    width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font-size: 13px;
+  }
+  #console .col { flex: 1 1 220px; }
+  #console .hint { font-size: 12.5px; color: var(--fg2); margin: 4px 0 0; }
+
+  /* Tabs */
+  .tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--border); margin-top: 16px; }
+  .tabs button {
+    border: none; background: none; color: var(--fg2); padding: 7px 13px; cursor: pointer;
+    font-size: 13.5px; border-bottom: 2px solid transparent; font-family: inherit;
+  }
+  .tabs button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+  .codewrap { position: relative; }
+  .codewrap pre { margin-top: 10px; }
+  .copy-btn {
+    position: absolute; top: 18px; right: 10px; font-size: 12px; padding: 3px 10px;
+    border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg2); cursor: pointer;
+  }
+  .copy-btn:hover { color: var(--fg); }
+
+  /* Try it */
+  .tryit { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin: 18px 0 8px; background: var(--bg2); }
+  .tryit h4 { margin: 0 0 10px; }
+  .tryit .fields { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .tryit .f { flex: 1 1 180px; }
+  .tryit label { font-size: 12px; font-weight: 600; color: var(--fg2); display: block; margin-bottom: 3px; }
+  .tryit input, .tryit select {
+    width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font-size: 13px;
+  }
+  .tryit input[type="date"] { min-height: 34px; }
+  .tryit input:invalid, #console input:invalid { border-color: var(--err); }
+  textarea.body-editor {
+    width: 100%; min-height: 170px; padding: 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--fg); font-size: 13px; line-height: 1.5; resize: vertical;
+  }
+  .run-btn {
+    background: var(--btn-bg); color: var(--accent-fg); border: none; border-radius: 7px;
+    padding: 8px 20px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .run-btn:disabled { opacity: .55; cursor: default; }
+  .result { margin-top: 12px; display: none; }
+  .result .status { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+  .result .status.ok { color: var(--ok); } .result .status.err { color: var(--err); }
+  .result .rheaders { font-size: 12.5px; color: var(--fg2); margin-bottom: 6px; }
+  .result pre { max-height: 420px; overflow: auto; }
+  /* Overrides móviles AL FINAL de la hoja para ganar la cascada sobre los estilos base */
+  @media (max-width: 900px) {
+    #sidebar nav a { padding: 11px 18px; }
+    .group-toggle { padding: 10px 18px; }
+    .nav-search input { padding: 11px 10px; }
+    #console input, #console select, .tryit input, textarea.body-editor { padding: 11px 10px; }
+    .copy-btn { padding: 9px 12px; }
+    #c-prod-ok { width: 20px; height: 20px; }
+    .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .tabs button { white-space: nowrap; padding: 10px 13px; }
+  }
+</style>
+</head>
+<body>
+
+<header id="topbar">
+  <button id="menu-btn" aria-label="Open menu" aria-expanded="false">☰</button>
+  <div class="brand">Granve <span>API</span></div>
+  <span class="lang-pill" style="margin-left:auto" title="Documentation language — more languages coming soon">🌐 EN</span>
+</header>
+<div id="scrim"></div>
+
+<aside id="sidebar">
+  <div class="brand">Granve <span>API</span>
+    <span class="lang-pill" id="lang-pill" title="Documentation language — more languages coming soon">🌐 EN</span>
+  </div>
+  <div class="nav-search">
+    <input id="nav-search" type="search" placeholder="Search endpoints…" autocomplete="off"
+      spellcheck="false" autocapitalize="off" aria-label="Search endpoints">
+  </div>
+  <nav id="nav">
+    <span class="nav-label">Getting started</span>
+    <a href="#introduction" data-kw="welcome overview introduction status codes json rest">Introduction</a>
+    <a href="#quickstart" data-kw="quickstart getting started first payment integration guide tutorial steps go live checklist">Quickstart</a>
+    <a href="#endpoints" data-kw="base url endpoint production sandbox environment host">Environments</a>
+    <a href="#authentication" data-kw="authentication auth headers authorization bearer x-sign x-date sign date hmac sha256 signature token">Authentication</a>
+    <a href="#testing" data-kw="testing sandbox simulate test keys magic references">Testing (sandbox)</a>
+    <a href="#console-anchor" data-kw="console try it run live credentials tokens execute">API console (try it)</a>
+    <span class="nav-label">API</span>
+    <div class="navgroup collapsed">
+      <button class="group-toggle" aria-expanded="false" type="button">Payment (PayIn) <span class="chev">▾</span></button>
+      <div class="group-items">
+        <a href="#payment-create" data-kw="payin post /v1.0/payment create payment order charge redirect_url amount"><span class="m post">POST</span>Create</a>
+        <a href="#payment-list" data-kw="payin get /v1.0/payment list payments pagination after_id cursor start_date end_date"><span class="m get">GET</span>List</a>
+        <a href="#payment-get" data-kw="payin get /v1.0/payment/id token query payment order by id status"><span class="m get">GET</span>Get by id</a>
+        <a href="#payment-get-order" data-kw="payin get /v1.0/payment/order query payment by order id"><span class="m get">GET</span>Get by order</a>
+      </div>
+    </div>
+    <div class="navgroup collapsed">
+      <button class="group-toggle" aria-expanded="false" type="button">Payment (PayOut) <span class="chev">▾</span></button>
+      <div class="group-items">
+        <a href="#payout-create" data-kw="payout post /v1.0/payout create send money pago movil transfer bank beneficiary"><span class="m post">POST</span>Create</a>
+        <a href="#payout-list" data-kw="payout get /v1.0/payout list payouts pagination after_id cursor"><span class="m get">GET</span>List</a>
+        <a href="#payout-get" data-kw="payout get /v1.0/payout/id query payout by id status"><span class="m get">GET</span>Get by id</a>
+        <a href="#payout-get-order" data-kw="payout get /v1.0/payout/order query payout by order id"><span class="m get">GET</span>Get by order</a>
+      </div>
+    </div>
+    <div class="navgroup collapsed">
+      <button class="group-toggle" aria-expanded="false" type="button">Wallet <span class="chev">▾</span></button>
+      <div class="group-items">
+        <a href="#wallet-balance" data-kw="wallet get /v1.0/wallet/balance balance saldo funds"><span class="m get">GET</span>Balance</a>
+        <a href="#wallet-list" data-kw="wallet get /v1.0/wallet list movements ledger credit debit"><span class="m get">GET</span>List</a>
+        <a href="#wallet-get" data-kw="wallet get /v1.0/wallet/id movement by id"><span class="m get">GET</span>Get by id</a>
+      </div>
+    </div>
+    <div class="navgroup collapsed">
+      <button class="group-toggle" aria-expanded="false" type="button">Tools <span class="chev">▾</span></button>
+      <div class="group-items">
+        <a href="#tools-methods" data-kw="tools get /v1.0/payment-methods payment methods catalog enabled discover list type"><span class="m get">GET</span>Payment methods</a>
+        <a href="#tools-banks" data-kw="tools get /v1.0/banks bank codes catalog pago movil transfer sudeban list"><span class="m get">GET</span>Banks</a>
+      </div>
+    </div>
+    <span class="nav-label">Resources</span>
+    <a href="#webhooks" data-kw="webhooks notification callback return url redirect terminal retry">Webhooks &amp; return URL</a>
+    <a href="#errors" data-kw="errors validation invalid_request api_error date_invalid auth_failed not_found 400 401 404 409 failed">Errors</a>
+    <a href="#troubleshooting" data-kw="troubleshooting common issues failures 401 date_invalid signature clock cors debug">Troubleshooting</a>
+    <a href="#changelog" data-kw="changelog versions release history">Changelog</a>
+    <p class="nav-empty" id="nav-empty" hidden>No matches — try another term.</p>
+  </nav>
+</aside>
+
+<main id="main">
+<div id="content">
+
+<h1 id="introduction">Granve API</h1>
+<p class="sub">REST API for creating and managing payments — v1.0.0</p>
+
+<p>Welcome to the Granve API. It lets you create payment orders, redirect your customer to a hosted
+payment page, and query the state of every transaction of your account.</p>
+
+<p>The API is designed around REST principles: predictable URLs, JSON request and response bodies,
+and standard HTTP status codes. All responses are JSON, including errors.</p>
+
+<table>
+  <tr><th>Status code</th><th>Meaning</th></tr>
+  <tr><td><code>200</code></td><td>Request succeeded.</td></tr>
+  <tr><td><code>400</code></td><td>Validation failed. The <code>error.message</code> object details each invalid field.</td></tr>
+  <tr><td><code>401</code></td><td>Authentication failed (token, <code>X-Date</code> or <code>X-Sign</code> header invalid).</td></tr>
+  <tr><td><code>404</code></td><td>Resource not found.</td></tr>
+  <tr><td><code>409</code></td><td>Conflict — the <code>order</code> identifier already exists for your account.</td></tr>
+  <tr><td><code>429</code></td><td>Rate limit exceeded — slow down and retry after the <code>Retry-After</code> header.</td></tr>
+  <tr><td><code>500</code></td><td>Internal server error.</td></tr>
+</table>
+
+<p><strong>Need access or help?</strong> The <strong>Granve compliance team</strong> at
+<a href="mailto:hola@granve.com">hola@granve.com</a> provisions accounts, issues credentials, and
+registers your webhook and return URLs — email them to get started or when something is not
+working. Prefer the machine-readable contract? Download the
+<a href="openapi.yaml" download>OpenAPI 3.0 specification</a>.</p>
+
+<h3>Conventions</h3>
+<ul>
+  <li><strong>Monetary amounts in responses are strings</strong> with two decimals
+  (<code>"100.00"</code>) — parse them with a decimal type, never float.</li>
+  <li><strong>Lists return <code>200</code> with an empty array</strong> (<code>[]</code>) when
+  nothing matches — <code>404</code> is reserved for missing individual resources. Without
+  dates, every list defaults to <strong>today only</strong>.</li>
+  <li><strong>Response timestamps</strong> use <code>YYYY-MM-DD HH:MM:SS</code> in
+  <strong>America/Caracas time (UTC−4, no DST)</strong> — Venezuela's timezone, where all
+  payments settle. Note this differs from the <code>X-Date</code> request header, which must be
+  UTC.</li>
+  <li><strong>Rate limit: 1200 requests/minute</strong> per IP. Every response carries
+  <code>X-RateLimit-Limit</code> and <code>X-RateLimit-Remaining</code>; exceeding the limit
+  returns <code>429</code> with a <code>Retry-After</code> header (seconds to wait). Back off and
+  retry — do not hammer.</li>
+  <li id="idempotency"><strong>Idempotency:</strong> your <code>order</code> is the idempotency
+  key on both <code>POST</code> endpoints. If a create request times out with no response,
+  <strong>retry with the same <code>order</code></strong> — a duplicate returns
+  <code>409</code> instead of creating a second payment or payout, so you never double-charge or
+  double-pay. Each <code>order</code> is unique to your account and cannot be reused — <strong>not even
+  when nothing was charged</strong>. If a payment or payout ends in a settled failure
+  (<code>declined</code>, <code>expired</code>, <code>canceled_user</code>,
+  <code>canceled_system</code>, <code>attempts_exhausted</code>), no money moved but the
+  <code>order</code> stays consumed: charging or paying again needs a <strong>new</strong>
+  <code>order</code>. The <code>409</code> tells you which case you are in — read
+  <code>error.hint</code>.</li>
+</ul>
+
+<h2 id="quickstart">Quickstart</h2>
+<p class="sub">From zero to your first confirmed payment — no SDK required.</p>
+
+<div class="split">
+<div class="doc">
+
+<p>Every Granve integration follows the same path: build and test everything against
+<strong>Sandbox</strong>, then change one base URL to go live. Your credentials are identical in
+both environments, so the code you write on day one is the code that runs in production.</p>
+
+<svg class="qs-flow" viewBox="0 0 680 232" role="img"
+  aria-label="Payment flow: your server creates the order, the customer pays on the hosted payment page, Granve notifies your webhook">
+  <defs>
+    <marker id="qsarr" markerWidth="8" markerHeight="7" refX="7" refY="3.5" orient="auto">
+      <path d="M0,0 L8,3.5 L0,7 Z" fill="var(--fg2)"/>
+    </marker>
+  </defs>
+  <rect class="box" x="45"  y="6" width="130" height="30" rx="7"/>
+  <rect class="box" x="275" y="6" width="130" height="30" rx="7"/>
+  <rect class="box" x="505" y="6" width="130" height="30" rx="7"/>
+  <text class="actor" x="110" y="26">Your server</text>
+  <text class="actor" x="340" y="26">Granve API</text>
+  <text class="actor" x="570" y="26">Customer</text>
+  <line class="life" x1="110" y1="36" x2="110" y2="222"/>
+  <line class="life" x1="340" y1="36" x2="340" y2="222"/>
+  <line class="life" x1="570" y1="36" x2="570" y2="222"/>
+  <text class="lbl" x="225" y="62">POST /v1.0/payment</text>
+  <line class="msg" x1="110" y1="70" x2="334" y2="70" marker-end="url(#qsarr)"/>
+  <text class="lbl" x="225" y="96">id + redirect_url</text>
+  <line class="msg ret" x1="340" y1="104" x2="116" y2="104" marker-end="url(#qsarr)"/>
+  <text class="lbl" x="340" y="130">redirect to the payment page</text>
+  <line class="msg" x1="110" y1="138" x2="564" y2="138" marker-end="url(#qsarr)"/>
+  <text class="lbl" x="455" y="164">pays on the hosted page</text>
+  <line class="msg" x1="570" y1="172" x2="346" y2="172" marker-end="url(#qsarr)"/>
+  <text class="lbl" x="225" y="198">webhook — terminal status</text>
+  <line class="msg ret" x1="340" y1="206" x2="116" y2="206" marker-end="url(#qsarr)"/>
+</svg>
+
+<div class="qs-steps">
+  <div class="qs-step"><div class="qs-n">1</div><div class="qs-body">
+    <h3>Get your credentials</h3>
+    <p>Request access from the <strong>Granve compliance team</strong> at
+    <a href="mailto:hola@granve.com">hola@granve.com</a>. They provision your account and reply
+    with your two access keys: a <strong>public token</strong> (sent in the
+    <code>Authorization</code> header) and a <strong>private token</strong> (your signing key).
+    The same pair works in Sandbox and Production — the base URL alone decides the environment,
+    so there are no separate test keys to manage. Every payment order carries its own
+    <a href="#payment-create"><code>return_url</code> and <code>notify_url</code></a> (both required
+    on Create); your account's webhook URL — registered by the compliance team — is used for payout
+    notifications.</p>
+    <div class="danger"><strong>⚠ Your private token is a server-side secret.</strong>
+    Anyone who reads it can sign requests <em>as you</em> and operate your account — and a
+    token shipped to a browser or an app is already public.
+    <ul>
+      <li class="no">Never anywhere the browser can get it — page source, JavaScript bundles,
+      a config endpoint, cookies or storage — nor sent from it by <em>any</em> mechanism:
+      <code>fetch()</code>, XHR, WebSockets, form posts or whatever comes next.</li>
+      <li class="no">Never inside a mobile or desktop app — extracting it from the binary takes
+      minutes.</li>
+      <li class="yes">Always <strong>your backend&nbsp;→ Granve API</strong>: the customer's
+      browser talks to your server, and your server makes the signed call.</li>
+    </ul>
+    Exposing the token in public code is a security vulnerability on <em>your</em> side and
+    <strong>your responsibility as an integrator</strong>. Suspect a leak? Request an immediate
+    rotation of your keys. (The <a href="#console-anchor">API console</a> on this page is a
+    development aid — Sandbox keys only.)</div>
+  </div></div>
+
+  <div class="qs-step"><div class="qs-n">2</div><div class="qs-body">
+    <h3>Sign a request</h3>
+    <p>Every call carries three headers: <code>Authorization</code>, <code>X-Date</code> and
+    <code>X-Sign</code> — an HMAC-SHA256 signature of the timestamp, keyed with your private
+    token (<a href="#authentication">Authentication</a>). The sample on the right computes all
+    three for you in 7 languages, and is runnable as-is against Sandbox.</p>
+  </div></div>
+
+  <div class="qs-step"><div class="qs-n">3</div><div class="qs-body">
+    <h3>Create a payment order</h3>
+    <p>Call <code>POST /v1.0/payment</code> with the amount, your own order id and the
+    customer's email. The response is the <a href="#payin">payment order object</a>: store the
+    <code>id</code> — your permanent handle for the transaction — and read the
+    <code>redirect_url</code>. Prefer zero code? Paste your keys in the
+    <a href="#console-anchor">API console</a> and press <em>Run</em>.</p>
+  </div></div>
+
+  <div class="qs-step"><div class="qs-n">4</div><div class="qs-body">
+    <h3>Redirect your customer</h3>
+    <p>Send the customer to <code>redirect_url</code> exactly as returned. The hosted payment
+    page shows the transfer details, collects the bank reference and validates the payment
+    directly with the bank — you never touch banking data yourself.</p>
+    <div class="note"><strong>In Sandbox</strong> the page shows a 🧪 test banner and no real
+    bank is contacted: type any reference ending in <code>00</code> to simulate a confirmed
+    payment (<a href="#testing">all magic references</a>).</div>
+  </div></div>
+
+  <div class="qs-step"><div class="qs-n">5</div><div class="qs-body">
+    <h3>Confirm the result</h3>
+    <p>When the order reaches a terminal state, Granve calls your <code>notify_url</code>
+    <em>once</em>, and sends the customer back to your <code>return_url</code>
+    (<a href="#webhooks">Webhooks &amp; return URL</a>). On every notification, confirm the
+    state with <code>GET /v1.0/payment/{id}</code> before delivering goods — the browser
+    redirect is informational, never proof of payment.</p>
+  </div></div>
+</div>
+
+<h3>Go live</h3>
+<p>Switch the base URL from <code>https://api-sandbox.granve.com</code> to
+<code>https://api.granve.com</code> — same credentials, same code. Before your first real
+charge:</p>
+<ul class="qs-check">
+  <li>Register your <strong>production</strong> webhook and return URLs. They are configured per
+  environment, so nothing you set up in Sandbox ever points at production.</li>
+  <li>Confirm every production response carries <code>"livemode": true</code> — a
+  <code>false</code> means the call reached Sandbox, not Production.</li>
+  <li>Make sure your webhook handler answers quickly with HTTP <code>200</code> — slow or
+  non-200 responses count as failed deliveries.</li>
+</ul>
+
+</div>
+<div class="codecol">
+<h3>Your first payment order</h3>
+<p class="hint">Runnable as-is against Sandbox — replace the two tokens with your keys.</p>
+<div id="quickstart-samples"></div>
+<h4>Response <code>200</code> (abridged)</h4>
+<pre><code>{
+  "id": "pi_00000000000000000000000000000000",
+  "livemode": false,
+  "status": "created",
+  "created_at": "2026-01-01 00:00:00",
+  "redirect_url": "{base_url}/{payment_method}/pi_000…?signature=…",
+  "merchant": {
+    "order": "ORDER0001",
+    "amount": "100.00"
+  }
+}</code></pre>
+</div>
+</div>
+
+<h2 id="endpoints">Environments</h2>
+<p>If you have a Granve account, you can access the REST API through the following base URLs:</p>
+<table>
+  <tr><th>Environment</th><th>Base URL</th></tr>
+  <tr><td>Production</td><td><code>https://api.granve.com</code></td></tr>
+  <tr><td>Sandbox</td><td><code>https://api-sandbox.granve.com</code></td></tr>
+</table>
+<p>The Sandbox endpoint lets you test your integration without affecting real data.</p>
+<div class="danger"><strong>⚠ The base URL is the only thing that separates test from real money.</strong>
+Your credentials are identical on both environments — there is no test-only key. Point your code at
+<code>https://api.granve.com</code> and every order you create is a <strong>real transaction that
+moves real money</strong>, even if you meant to test.
+<ul>
+  <li class="no">Never hardcode the host per request. Keep it in a single config constant
+  (<code>BASE_URL</code>) that you flip once to go live.</li>
+  <li class="yes">Assert <code>livemode</code> on every response before trusting it —
+  <code>false</code> = Sandbox (safe), <code>true</code> = Production (real). If your test suite
+  ever sees <code>"livemode": true</code>, stop: you are hitting production.</li>
+</ul></div>
+
+<h2 id="authentication">Authentication</h2>
+<div class="split">
+<div class="doc">
+<p>Every request must include <strong>three headers</strong>. Replace
+<code>your_public_token</code> and <code>your_private_token</code> with the access keys provided
+for your account.</p>
+
+<table>
+  <tr><th>Header</th><th>Value</th></tr>
+  <tr><td><code>Authorization</code></td><td><code>Bearer your_public_token</code></td></tr>
+  <tr><td><code>X-Date</code></td><td>Current timestamp in UTC, ISO-8601 with explicit <code>Z</code> suffix.
+      It must be within <strong>±5 minutes</strong> of server time.<br>
+      Format: <code>^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$</code></td></tr>
+  <tr><td><code>X-Sign</code></td><td>Hex HMAC-SHA256 of the <code>X-Date</code> value, keyed with your private token:
+      <code>HMAC_SHA256(X-Date, your_private_token)</code>.<br>
+      Format: <code>^[a-f0-9]{64}$</code></td></tr>
+</table>
+
+<p>If the <code>X-Date</code> header is missing, malformed, not UTC or outside the ±5-minute window,
+the API answers <code>401</code> with <code>error.code = "date_invalid"</code> — the exact body is
+shown in <a href="#errors">Errors</a>.</p>
+
+<div class="danger"><strong>⚠ Never sign in the browser.</strong> Signing happens exclusively
+<strong>backend&nbsp;→ API</strong>: the private token must never reach a browser or an app —
+full rules in <a href="#quickstart">Quickstart, step&nbsp;1</a>.</div>
+
+</div>
+<div class="codecol">
+<h3>Signing a request in your language</h3>
+<div id="auth-samples"></div>
+</div>
+</div>
+
+<h2 id="testing">Testing (sandbox)</h2>
+<p>The sandbox at <code>https://api-sandbox.granve.com</code> is a fully isolated environment —
+<strong>your same credentials work on both environments</strong>; only the base URL changes.
+Everything you create in sandbox lives in a separate database and never touches real money.</p>
+<h3>Magic references — Payment (PayIn)</h3>
+<p>On the sandbox payment page, the outcome is decided by the <strong>last two digits</strong> of
+the reference you type — no real bank is ever contacted:</p>
+<table>
+  <tr><th>Reference ends in</th><th>Simulated bank response</th><th>Result</th></tr>
+  <tr><td><code>00</code></td><td>Payment found, exact amount</td><td>Order <code>completed</code></td></tr>
+  <tr><td><code>99</code></td><td>Bank cannot find the payment</td><td>Attempt rejected</td></tr>
+  <tr><td><code>50</code></td><td>Payment found with a different amount</td><td>Attempt rejected (amount cross-check)</td></tr>
+  <tr><td>anything else</td><td>Bank temporarily unavailable</td><td>Attempt fails; order stays <code>pending</code> (retry allowed)</td></tr>
+</table>
+<p>Magic references can be <strong>reused freely</strong> — every simulated payment is recorded under
+a unique bank reference, so concurrent tests by different integrators never collide.</p>
+
+<h3>Magic amounts — Payment (PayOut)</h3>
+<p>Payouts are simulated too: your sandbox wallet is <strong>automatically topped up with test
+balance</strong> (so creation never fails for insufficient funds), and the bank result is decided
+by the <strong>last two digits of the amount</strong>, a few seconds after creation:</p>
+<table>
+  <tr><th>Amount ends in</th><th>Result</th></tr>
+  <tr><td><code>99</code></td><td><code>declined</code> — the wallet is refunded (amount + fee), and the webhook fires</td></tr>
+  <tr><td><code>50</code></td><td>Stays in <code>created</code> — useful to test polling and pending states</td></tr>
+  <tr><td>anything else</td><td><code>completed</code> in ~10 seconds, with deposit fields set — the webhook fires</td></tr>
+</table>
+<p>Example: <code>"amount": 199</code> simulates a <code>declined</code> payout; <code>"amount": 100</code>
+completes normally.</p>
+<ul>
+  <li><strong>Full PayIn flow:</strong> create an order, open the returned <code>redirect_url</code>
+  in a browser to see the hosted payment page, then query it by its <code>id</code> or by your
+  own <code>order</code> identifier.</li>
+  <li><strong>Duplicate handling:</strong> re-send the same <code>order</code> value to see the
+  <code>409</code> conflict response.</li>
+  <li><strong>Validation:</strong> send <code>amount</code> below the minimum or a malformed
+  <code>phone</code>/<code>document</code> to exercise <code>400</code> responses.</li>
+  <li><strong>Signature errors:</strong> send a stale <code>X-Date</code> (&gt;5 min old) to see the
+  <code>date_invalid</code> response.</li>
+</ul>
+<p>The <a href="#console-anchor">API console</a> below targets <strong>Sandbox</strong> by default; runs against Production stay behind an explicit checkbox.</p>
+
+<h2 id="console-anchor">API console — try it live</h2>
+<div id="console">
+  <h3>Your credentials</h3>
+  <div class="row">
+    <div class="col">
+      <label for="c-env">Environment</label>
+      <select id="c-env">
+        <option value="https://api-sandbox.granve.com">Sandbox — api-sandbox.granve.com</option>
+        <option value="https://api.granve.com">Production — api.granve.com</option>
+      </select>
+    </div>
+    <div class="col">
+      <label for="c-pub">Public token</label>
+      <input id="c-pub" class="mono" placeholder="prkey-…" pattern="prkey-[^\s]{34}" maxlength="40" title="Format: prkey- followed by 34 characters (40 total, no spaces)" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off">
+    </div>
+    <div class="col">
+      <label for="c-priv">Private token</label>
+      <div style="display:flex;gap:6px">
+        <input id="c-priv" class="mono" type="password" placeholder="prscr-…" pattern="prscr-[^\s]{34}" maxlength="40" title="Format: prscr- followed by 34 characters (40 total, no spaces)" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off">
+        <button id="c-priv-load" class="run-btn" type="button" style="padding:6px 14px;font-size:13px">Load</button>
+      </div>
+      <p class="hint" id="c-priv-state">Not loaded — paste your key and press Load.</p>
+    </div>
+  </div>
+  <p class="hint"><strong>How your private token is protected:</strong> it is <em>never stored</em>.
+  When you press <em>Load</em> it is imported as a <em>non-extractable</em> signing key
+  (Web&nbsp;Crypto), the input is wiped and the raw value is discarded — from that moment scripts can
+  ask the key to sign, but can no longer read it. It lives in memory only and disappears when you
+  close or reload the page. Only the environment and the public token are remembered
+  (<code>localStorage</code>). The <code>X-Date</code>&nbsp;+&nbsp;<code>X-Sign</code> pair is computed
+  automatically on every run.</p>
+  <p class="hint"><strong>Honest limit:</strong> no web page can defend a pasted secret against a
+  malicious browser extension that is already watching the page. For testing, use
+  <strong>sandbox</strong> keys and ideally a browser profile with no extensions installed. Rotate any
+  key you suspect exposed.</p>
+  <label class="hint" style="display:flex;align-items:flex-start;gap:8px;margin-top:8px;cursor:pointer">
+    <input type="checkbox" id="c-prod-ok" style="width:auto;margin-top:3px">
+    <span>Allow runs against <strong>Production</strong> (off by default — using production keys in
+    a browser is discouraged)</span>
+  </label>
+  <p class="hint" id="crypto-warn" style="display:none;color:var(--err)">
+  ⚠ This page is not running in a secure context (https), so the browser refuses to compute
+  HMAC signatures. Open the docs over https (GitHub Pages) or <code>localhost</code>.</p>
+</div>
+<p>Each endpoint below has a <strong>Run</strong> panel wired to these credentials. If a request fails
+with a network error, the API host most likely does not allow this page's origin in its CORS
+configuration (<code>CORS_ALLOWED_ORIGINS</code>).</p>
+
+<h2 id="payin">Payment (PayIn)</h2>
+<p>A <em>payment order</em> represents a charge to your customer. You create it, redirect the customer
+to the returned <code>redirect_url</code> (the hosted payment page), and the customer pays through the
+selected method. When the order reaches a terminal state, Granve notifies the <code>notify_url</code>
+you set on Create, and the customer is sent back to your <code>return_url</code>.</p>
+
+<div class="split">
+<div class="doc">
+<h3 style="margin-top:0">The payment order object</h3>
+<div class="note"><strong><code>redirect_url</code> is opaque:</strong> its host follows the
+environment you called (production or sandbox) and its path depends on the payment method that will
+process the order. Always use the returned value <em>verbatim</em> — never build, modify or parse it.</div>
+<div class="note"><strong>Order lifetime:</strong> a payment order stays payable for
+<strong>6 hours</strong> after creation — if the payer has not completed it by then, it
+transitions to <code>expired</code> and the webhook fires. On the payment page the payer has
+<strong>3 validation attempts</strong>; after the third failed attempt the order becomes
+<code>attempts_exhausted</code> (webhook fires). Both are terminal: create a new order to
+retry.</div>
+<p><code>status</code> is one of:</p>
+<table>
+  <tr><th>Status</th><th>Meaning</th></tr>
+  <tr><td><code>created</code> / <code>pending</code></td><td>Order created, waiting for the payer.</td></tr>
+  <tr><td><code>processing</code> / <code>under_review</code> / <code>retrying</code></td><td>Payment being verified.</td></tr>
+  <tr><td><code>completed</code></td><td>Payment confirmed. <code>payment.authorization</code> carries the bank reference.</td></tr>
+  <tr><td><code>declined</code> / <code>failed</code> / <code>attempts_exhausted</code></td><td>Payment did not complete. <code>payment.reason</code> carries the human-readable explanation.</td></tr>
+  <tr><td><code>canceled_user</code> / <code>canceled_system</code></td><td>Canceled by the payer or by Granve.</td></tr>
+  <tr><td><code>expired</code></td><td>The order expired before payment.</td></tr>
+  <tr><td><code>voided</code> / <code>refunded</code> / <code>partially_refunded</code> / <code>disputed</code> / <code>chargeback</code></td><td>Post-payment states, set by Granve operations (compliance, support or the admin panel) — never by the payment flow itself. Treat them as read-only signals: they can appear on an order that was already <code>completed</code>.</td></tr>
+</table>
+</div>
+<div class="codecol">
+<h4>Object example</h4>
+<pre><code>{
+  "id": "pi_00000000000000000000000000000000",
+  "livemode": false,
+  "status": "pending",
+  "created_at": "2026-01-01 00:00:00",
+  "redirect_url": "{base_url}/{payment_method}/pi_00000000000000000000000000000000?signature=…",
+  "merchant": {
+    "order": "ORDER0001",
+    "description": "Lorem ipsum dolor sit",
+    "amount": "100.00"
+  },
+  "payer": {
+    "email": "user@example.com",
+    "document": "V15427089",
+    "phone": "04125837194"
+  },
+  "payment": {
+    "started_at": null,
+    "ended_at": null,
+    "amount": "0.00",
+    "fee": "0.00",
+    "authorization": null,
+    "reason": null,
+    "type": "mobile_payment",
+    "card": {
+      "last4": null,
+      "authorization_code": null,
+      "installments": null,
+      "brand": null
+    },
+    "settlement": {
+      "id": null,
+      "settled_at": null
+    },
+    "currency": "VES"
+  }
+}</code></pre>
+</div>
+</div>
+
+<!-- ======================= CREATE ======================= -->
+<section id="payment-create"></section>
+
+<!-- ======================= LIST ======================= -->
+<section id="payment-list"></section>
+
+<!-- ======================= GET ======================= -->
+<section id="payment-get"></section>
+
+<!-- ======================= GET BY ORDER ======================= -->
+<section id="payment-get-order"></section>
+
+<h2 id="payout">Payment (PayOut)</h2>
+<p>A <em>payout</em> sends money from your Granve wallet balance to a beneficiary's bank —
+by <strong>Pago Móvil</strong> (11-digit mobile number) or <strong>bank transfer</strong>
+(20-digit account number). The amount plus the payout fee is debited from your wallet when the
+payout is accepted.</p>
+
+<div class="split">
+<div class="doc">
+<h3 style="margin-top:0">The payout object</h3>
+<p><code>wallet.payout</code> and <code>wallet.fee</code> are the two wallet movements the
+payout generated: the payout amount and the commission. <code>bank.method</code> is <code>mobile</code> or
+<code>transfer</code>.</p>
+<div class="note">System-generated <code>description</code> values in these movements
+(e.g. <code>Cargo payout…</code>) are returned in Spanish.</div>
+<p><code>status</code> is one of:</p>
+<table>
+  <tr><th>Status</th><th>Meaning</th></tr>
+  <tr><td><code>created</code></td><td>Payout accepted and queued; wallet already debited.</td></tr>
+  <tr><td><code>processing</code></td><td>Being executed against the bank.</td></tr>
+  <tr><td><code>completed</code></td><td>Money delivered to the beneficiary.</td></tr>
+  <tr><td><code>declined</code></td><td>The bank refused the operation; the wallet is refunded.</td></tr>
+  <tr><td><code>settlement_pending</code> / <code>settled</code></td><td>Settlement lifecycle states.</td></tr>
+</table>
+</div>
+<div class="codecol">
+<h4>Object example</h4>
+<pre><code>{
+  "id": "po_00000000000000000000000000000000",
+  "livemode": false,
+  "status": "created",
+  "created_at": "2026-01-01 00:00:00",
+  "merchant": {
+    "order": "PO-0001",
+    "description": "Lorem ipsum payout",
+    "amount": "100.00"
+  },
+  "beneficiary": {
+    "name": "Lorem Ipsum",
+    "document": "V00000000",
+    "email": "user@example.com",
+    "phone": "04120000000"
+  },
+  "bank": {
+    "code": "0102",
+    "type": null,
+    "num": "04120000000",
+    "method": "mobile"
+  },
+  "wallet": {
+    "payout": {
+      "id": "1000000000000002",
+      "created_at": "2026-01-01 00:00:00",
+      "type": "debit",
+      "description": "Cargo payout - 1000000000000002",
+      "amount": "100.00",
+      "currency": "VES",
+      "deposit": { "settled_at": null, "amount": "0.00" }
+    },
+    "fee": {
+      "id": "1000000000000003",
+      "created_at": "2026-01-01 00:00:00",
+      "type": "debit",
+      "description": "Cargo tax payout",
+      "amount": "1.00",
+      "currency": "VES"
+    }
+  }
+}</code></pre>
+</div>
+</div>
+
+<section id="payout-create"></section>
+<section id="payout-list"></section>
+<section id="payout-get"></section>
+<section id="payout-get-order"></section>
+
+<h2 id="wallet">Wallet</h2>
+<p>Your wallet is the ledger of your Granve balance: every PayIn settlement, payout, fee and deposit
+is a <em>movement</em>. Balances and movements are per currency (<code>VES</code>).</p>
+
+<h3 id="fees-settlement">Fees &amp; settlement</h3>
+<p>A completed PayIn is not immediately spendable. Its funds first appear as
+<strong><code>balance.pending</code></strong> (collected, not yet settled), and are moved into your
+spendable <strong><code>balance.available</code></strong> by a <em>settlement</em> that runs on
+Venezuelan business days. When it settles, a <code>credit</code> movement is added to your wallet and
+the originating payment's <code>payment.settlement</code> is filled:</p>
+<ul>
+  <li><code>payment.settlement.settled_at</code> — the date (<code>YYYY-MM-DD</code>) the payment was
+  settled into your wallet; <code>null</code> while still pending.</li>
+  <li><code>payment.settlement.id</code> — identifier of the settlement batch that moved it.</li>
+</ul>
+<p>On the payout side, <code>wallet.payout.deposit.settled_at</code> confirms the date the money was
+actually deposited to the beneficiary (with <code>deposit.amount</code>). Fees are their own wallet
+movement: a payout generates a <code>wallet.payout</code> debit (the amount) plus a
+<code>wallet.fee</code> debit (the commission).</p>
+
+<div class="split">
+<div class="doc">
+<h3 style="margin-top:0">The movement object</h3>
+<p><code>type</code> is <code>credit</code> (increases your balance) or <code>debit</code> (decreases
+it). <code>balance</code> is the wallet balance right after this movement.</p>
+</div>
+<div class="codecol">
+<h4>Object example</h4>
+<pre><code>{
+  "id": "1000000000000002",
+  "livemode": false,
+  "created_at": "2026-01-01 00:00:00",
+  "type": "debit",
+  "description": "Cargo payout - 1000000000000002",
+  "amount": "100.00",
+  "balance": "900.00",
+  "currency": "VES"
+}</code></pre>
+</div>
+</div>
+
+<section id="wallet-balance"></section>
+<section id="wallet-list"></section>
+<section id="wallet-get"></section>
+
+<h2 id="tools">Tools</h2>
+<p>Utility endpoints that support your integration.</p>
+
+<section id="tools-methods"></section>
+
+<section id="tools-banks"></section>
+
+<h2 id="webhooks">Webhooks &amp; return URL</h2>
+<p><strong>One action, every object.</strong> When an object reaches its final state, Granve sends
+a <code>POST</code> with the result. The payload,
+the acknowledgment rule and the retry policy are identical for every object type — only
+<em>where</em> it goes and <em>when</em> it fires depend on the object:</p>
+
+<div class="note"><strong>Where it goes.</strong> For a <a href="#payin">payment order</a>, the
+webhook goes to the <a href="#payment-create"><code>notify_url</code></a> you set on Create (required),
+and the payer's browser returns to that order's <code>return_url</code>. For a
+<a href="#payout">payout</a>, the webhook goes to the URL registered for your account by the
+compliance team — email <a href="mailto:hola@granve.com">hola@granve.com</a> to set or change it.</div>
+
+<table>
+  <tr><th>Object</th><th><code>id</code></th><th>Fires when</th><th><code>status</code> arrives as</th></tr>
+  <tr><td><a href="#payin">Payment order</a></td><td><code>pi_…</code></td><td>The order reaches a terminal state — or a <a href="#host2host-failures">host2host verification fails</a></td><td><code>completed</code>, <code>attempts_exhausted</code>, <code>expired</code>, <code>canceled_user</code>, <code>declined</code>, <code>under_review</code>, <code>created</code></td></tr>
+  <tr><td><a href="#payout">Payout</a></td><td><code>po_…</code></td><td>The payout is processed by the bank</td><td><code>completed</code>, <code>declined</code></td></tr>
+</table>
+
+<p>Every notification carries the same three parameters (plus <code>livemode</code> in the JSON body), appended to the URL as a query string
+<em>and</em> repeated as the JSON body:</p>
+
+<table>
+  <tr><th>Parameter</th><th>Value</th></tr>
+  <tr><td><code>id</code></td><td>Identifier of the object (<code>pi_…</code> / <code>po_…</code>).</td></tr>
+  <tr><td><code>status</code></td><td>Status at notification time (see the table above).</td></tr>
+  <tr><td><code>order</code></td><td>Your own identifier, exactly as you sent it on Create.</td></tr>
+  <tr><td><code>livemode</code></td><td><code>true</code>/<code>false</code> — which environment fired the webhook (JSON body only).</td></tr>
+  <tr><td><code>reason</code></td><td>Machine code, JSON body only. Present only when a <a href="#host2host-failures">verification failed</a>. Not to be confused with <code>payment.reason</code> in the payment object, which is a sentence for display.</td></tr>
+  <tr><td><code>retryable</code></td><td>Boolean, JSON body only. Sent with <code>reason</code>: whether the same payment data may still succeed.</td></tr>
+  <tr><td><code>attempts_left</code></td><td>Integer, JSON body only. Sent when the order is still open: validation attempts the payer has left.</td></tr>
+</table>
+
+<pre><code>POST https://your-webhook.example.com/granve?id=pi_000…&amp;status=completed&amp;order=ORDER0001
+Content-Type: application/json
+X-Date: 2026-01-01T00:00:00Z
+X-Sign: 3f1a…64 hex…
+
+{
+  "id": "pi_00000000000000000000000000000000",
+  "status": "completed",
+  "order": "ORDER0001",
+  "livemode": true
+}</code></pre>
+
+<h3 id="host2host-failures">When a host2host verification fails</h3>
+<p>An order created with an attached <code>payer</code> proof is verified against the bank
+server-to-server, with no payer at a screen. If that verification does not succeed you are told
+straight away, instead of waiting for the order to expire. Two shapes, and the difference is
+what you should do about it:</p>
+
+<table>
+  <tr><th><code>retryable</code></th><th>The order</th><th>What it means</th></tr>
+  <tr><td><code>true</code></td><td>stays open, <code>status</code> arrives as <code>created</code></td>
+      <td>The same data may still succeed — most often the bank has not reflected the transfer yet.
+      Send the payer to <code>redirect_url</code>; <code>attempts_left</code> says how many tries remain.</td></tr>
+  <tr><td><code>false</code></td><td>is closed, <code>status</code> arrives as <code>declined</code></td>
+      <td>The data will never verify. Release stock or seats now — this is an ordinary terminal
+      <code>declined</code> delivery with one extra field explaining the cause.</td></tr>
+</table>
+
+<pre><code>{
+  "id": "pi_00000000000000000000000000000000",
+  "status": "created",
+  "order": "ORDER0001",
+  "livemode": true,
+  "reason": "payment_not_found",
+  "retryable": true,
+  "attempts_left": 2
+}</code></pre>
+
+<p><code>reason</code> is one of <code>payment_not_found</code>, <code>bank_unavailable</code>,
+<code>amount_mismatch</code>, <code>reference_mismatch</code>, <code>reference_in_use</code>,
+<code>identity_mismatch</code>, <code>bank_not_supported</code>, <code>invalid_proof</code>,
+<code>order_not_payable</code>, <code>service_unavailable</code>, <code>busy</code>,
+<code>internal_error</code> or <code>verification_error</code>. Switch on the code, not on any
+wording. <strong>New codes may be added</strong> — branch on <code>retryable</code> so a code you
+have never seen still lands on the right path.</p>
+
+<div class="note"><strong>A <code>created</code> notification is not a failure of the order.</strong>
+If your integration treats every webhook as final, check for <code>reason</code> before acting: that
+order is still alive and still payable. And closing an unpaid order never consumes your customer's
+transfer — a bank reference is only locked once it has paid a <em>completed</em> order, so the same
+payment can be attached to a new order.</div>
+
+<h3>Delivery rules — the same for every notification</h3>
+<div class="split">
+<div class="doc">
+<ul>
+  <li><strong>One delivery</strong> per <code>id</code> + <code>status</code> pair — never twice.</li>
+  <li><strong>Every delivery is signed over its body:</strong> the headers carry
+  <code>X-Date</code> (UTC ISO-8601 <code>Z</code>) and <code>X-Sign</code> =
+  <code>HMAC_SHA256(X-Date + "." + raw_body, your_private_token)</code>. Signing the body — not
+  just the timestamp — means a captured signature cannot be reused with a different payload.
+  Verify before trusting the body: recompute the HMAC over the received <code>X-Date</code> and
+  the <strong>exact raw body</strong>, compare in constant time, and reject if the date is older
+  than <strong>5 minutes</strong>. Only Granve and you hold that key.</li>
+  <li><strong>Acknowledge with HTTP <code>200</code> exactly</strong> (an empty body is fine).
+  Anything else — including other <code>2xx</code> codes — counts as a failed delivery.</li>
+  <li><strong>Failed deliveries are retried 3 times, 5 seconds apart.</strong> After that, an
+  automatic recovery job re-queues undelivered notifications <strong>every 10 minutes</strong>
+  (payments for 7 days, payouts for 30) — a temporary outage of your endpoint heals itself.</li>
+  <li><strong>The GET is the source of truth</strong> (<a href="#payment-get">payment</a> /
+  <a href="#payout-get">payout</a>): poll it whenever an expected notification is missing.</li>
+</ul>
+</div>
+<div class="codecol">
+<h4 style="margin-top:0">Verify the signature</h4>
+<div id="webhook-verify-samples"></div>
+</div>
+</div>
+
+<h3>Manual re-notification (payments)</h3>
+<p>If you need the <code>completed</code> webhook of a payment re-sent (e.g. your endpoint was down
+past the recovery window), you can request it yourself:</p>
+<pre><code>GET /v1.0/payment/notify/{id}/valid/{valid}?expires={unix}
+
+{valid} = HMAC_SHA256({id} + "." + {expires}, your_private_token)   // hex</code></pre>
+<p><code>expires</code> is a Unix timestamp at most <strong>15 minutes</strong> in the future.
+Past it the request is rejected, so the URL stops working instead of staying valid for as long as
+the order is reachable. Build it right before you use it.</p>
+<p class="note"><strong>Deprecated:</strong> the older form without <code>expires</code>
+(<code>{valid} = HMAC_SHA256({id}, your_private_token)</code>) is still accepted, but it never
+expired — and since the signature travels in the path, it ends up in every access log the URL
+passes through. Add <code>expires</code> and include it in the HMAC input.</p>
+<p>It only re-fires for successful orders from the last 3 months whose webhook was never
+acknowledged, and always answers <code>200</code> with an empty array body (<code>[]</code>) —
+it never confirms whether the order exists.</p>
+
+<h3>Payer return (browser redirect)</h3>
+<p>After finishing (or abandoning) the hosted payment page, the payer's browser is redirected to the
+order's <code>return_url</code> with the same three parameters appended:
+<code>?id=…&amp;status=…&amp;order=…</code>. This is a UX signal only — the webhook plus the
+authenticated query are the reliable channel.</p>
+
+<h2 id="errors">Errors</h2>
+<p>The HTTP status code is the primary signal (see the <a href="#introduction">status table</a>).
+<strong>Every error — validation, auth, not-found, server — uses the same envelope:</strong></p>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "code": "invalid_request",          // always present
+    "message": "Validation failed.",     // always a string
+    "fields": {                          // only on validation: per-field detail
+      "amount": "must be at least 5 VES"
+    },
+    "request_id": "req_…"               // always present — quote it in support requests
+  }
+}</code></pre>
+<table>
+  <tr><th>error.code</th><th>HTTP</th><th>Meaning</th></tr>
+  <tr><td><code>invalid_request</code></td><td><code>400</code> / <code>409</code></td><td>The request failed validation (or the <code>order</code> already exists). <code>error.fields</code> lists each invalid field. Fix it; do not retry as-is.</td></tr>
+  <tr><td><code>date_invalid</code></td><td><code>401</code></td><td>The <code>X-Date</code> header is missing, malformed or outside the ±5-minute window. Carries a <code>hint</code> and <code>example</code> timestamp.</td></tr>
+  <tr><td><code>auth_failed</code></td><td><code>401</code></td><td>Missing/invalid token or signature.</td></tr>
+  <tr><td><code>not_found</code></td><td><code>404</code></td><td>No resource matched.</td></tr>
+  <tr><td><code>api_error</code></td><td><code>500</code></td><td>Something failed on Granve's side while processing a valid request. Safe to retry with backoff.</td></tr>
+</table>
+<p><code>fields</code> appears <strong>only</strong> on validation (<code>400</code>/<code>409</code>);
+other errors carry just <code>code</code>, <code>message</code> and <code>request_id</code>. The
+<code>date_invalid</code> case adds a <code>hint</code> and a live <code>example</code>:</p>
+<pre><code id="code-dateinvalid">{
+  "status": "failed",
+  "error": {
+    "code": "date_invalid",
+    "message": "The X-Date header is required.",
+    "hint": "Send the X-Date header in UTC ISO-8601 with Z. Example (now): 2026-07-17T14:20:30Z",
+    "example": "2026-07-17T14:20:30Z",
+    "request_id": "req_…"
+  }
+}</code></pre>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+<p>The failures integrators actually hit, with their causes and fixes.</p>
+
+<h3>401 with <code>error.code = "date_invalid"</code></h3>
+<p><strong>Cause:</strong> the <code>X-Date</code> header is outside the ±5-minute window, or is
+not UTC ISO-8601 with the explicit <code>Z</code> suffix. The most common culprits: a server
+clock that has drifted, or sending local time instead of UTC.</p>
+<p><strong>Fix:</strong> sync your clock (NTP) and always generate the timestamp in UTC
+(<code>gmdate()</code>, <code>datetime.now(timezone.utc)</code>, <code>Date().toISOString()</code>).
+The error response includes a valid example timestamp of the current server time — compare it
+with yours.</p>
+
+<h3>401 with <code>sign</code> / <code>authorization</code> errors</h3>
+<p><strong>Cause:</strong> the usual signature mistakes — signing with the <em>public</em> token
+instead of the private one; signing something other than the exact <code>X-Date</code> value you
+sent; or a token that lost/gained characters when copied (both tokens are
+<strong>exactly 40 characters</strong> — a trailing space or newline breaks the signature
+silently).</p>
+<p><strong>Fix:</strong> the signature is <code>HMAC_SHA256(X-Date value, private_token)</code>,
+hex-encoded — nothing more. Trim whitespace from both tokens and verify their length is 40.</p>
+
+<h3>GET request answers <code>405</code> or an unexpected error</h3>
+<p><strong>Cause:</strong> your HTTP client silently turned the GET into a POST. The classic:
+<code>curl --data ''</code> forces POST even with a GET URL.</p>
+<p><strong>Fix:</strong> never pass a body on GET requests; with curl use <code>-X GET</code>
+and no <code>--data</code>.</p>
+
+<h3>Webhook never arrives</h3>
+<p><strong>Cause:</strong> for a payment, the <code>notify_url</code> you sent on Create points
+somewhere you are not watching; for a payout, no webhook URL is registered for your account; or
+your endpoint did not answer <strong>HTTP 200 exactly</strong> (a <code>201</code>/<code>204</code>
+counts as a failed delivery); or it answered too slowly.</p>
+<p><strong>Fix:</strong> double-check the URL, acknowledge with a fast empty <code>200</code>, and
+remember failed deliveries are retried automatically. When in doubt, poll the authenticated
+GET — it is always the source of truth.</p>
+
+<h3>Browser shows "Network error: Failed to fetch"</h3>
+<p><strong>Cause:</strong> requests to the API from a browser page are subject to CORS — the
+API only allows known origins. (Reminder: production integrations must call the API from your
+<strong>backend</strong>, never from a browser.)</p>
+<p><strong>Fix:</strong> use this documentation's <a href="#console-anchor">API console</a> for
+browser testing, and your server for everything else.</p>
+
+<h3>Still stuck?</h3>
+<p>Email the <strong>Granve compliance team</strong> at
+<a href="mailto:hola@granve.com">hola@granve.com</a> — the same contact that provisions accounts
+and registers webhook/return URLs. Include the <code>request_id</code> from the error response
+when you have one; it lets them trace the exact call.</p>
+
+<h2 id="changelog">Changelog</h2>
+<table>
+  <tr><th>Version</th><th>Date</th><th>Changes</th></tr>
+  <tr><td><code>1.0.0</code></td><td>2026-07</td><td>Initial release of the Granve API:
+  Payment (PayIn), Payment (PayOut), Wallet and Tools endpoints; unified webhook contract
+  (<code>id</code>/<code>status</code>/<code>order</code>); guides for authentication, errors,
+  webhooks and sandbox testing; live API console with automatic request signing; code examples
+  in 7 languages.</td></tr>
+</table>
+
+</div>
+</main>
+
+<button id="to-top" aria-label="Back to top" title="Back to top">↑</button>
+
+<script>
+"use strict";
+
+/* ---------------------------------------------------------------- helpers */
+const $ = (s, el) => (el || document).querySelector(s);
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/* Escapa el texto y convierte cada URL http(s) en link clickeable (seguro: esc primero,
+   el patrón exige prefijo https?:// así que no admite javascript: u otros esquemas). */
+function linkify(text) {
+  return esc(text).replace(/https?:\/\/[^\s"]+/g,
+    m => `<a href="${m}" target="_blank" rel="noopener noreferrer">${m}</a>`);
+}
+
+function cleanIsoNow() {
+  return new Date().toISOString().replace(/\.\d+Z$/, "Z");
+}
+
+/* Fechas de ejemplo siempre vigentes: end = hoy, start ≈ 3 meses atrás (90 días — el
+   rango máximo del API es 92; 90 nunca lo excede, ni en meses de 31). */
+const isoDay = d => d.toISOString().slice(0, 10);
+const DATE_END = isoDay(new Date());
+const DATE_START = isoDay(new Date(Date.now() - 90 * 86400000));
+
+/* The private token is imported as a NON-EXTRACTABLE CryptoKey and the raw
+   string is discarded: after import, scripts can sign with it but can never
+   read it back. Memory only — gone on reload. Never persisted anywhere. */
+let privKey = null;
+
+async function importPrivateKey(raw) {
+  const enc = new TextEncoder();
+  return crypto.subtle.importKey("raw", enc.encode(raw), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+}
+
+async function signWithPrivateKey(msg) {
+  const sig = await crypto.subtle.sign("HMAC", privKey, new TextEncoder().encode(msg));
+  return [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+/* ------------------------------------------------------------- mobile nav */
+(function initNav() {
+  const sidebar = $("#sidebar");
+  const scrim = $("#scrim");
+  const menuBtn = $("#menu-btn");
+  const setMenu = open => {
+    sidebar.classList.toggle("open", open);
+    scrim.classList.toggle("show", open);
+    menuBtn.setAttribute("aria-expanded", String(open));
+  };
+  menuBtn.addEventListener("click", () => setMenu(!sidebar.classList.contains("open")));
+  scrim.addEventListener("click", () => setMenu(false));
+  document.addEventListener("keydown", e => { if (e.key === "Escape") setMenu(false); });
+  sidebar.querySelectorAll("nav a").forEach(a => a.addEventListener("click", () => setMenu(false)));
+
+  const toTop = $("#to-top");
+  window.addEventListener("scroll", () => {
+    toTop.classList.toggle("show", window.scrollY > 500);
+  }, { passive: true });
+  toTop.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+
+  /* grupos colapsables */
+  document.querySelectorAll(".group-toggle").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const group = btn.closest(".navgroup");
+      const collapsed = group.classList.toggle("collapsed");
+      btn.setAttribute("aria-expanded", String(!collapsed));
+      // Acordeón: un solo grupo abierto a la vez.
+      if (!collapsed) {
+        document.querySelectorAll("#nav .navgroup").forEach(g => {
+          if (g !== group && !g.classList.contains("collapsed")) {
+            g.classList.add("collapsed");
+            g.querySelector(".group-toggle").setAttribute("aria-expanded", "false");
+          }
+        });
+      }
+    });
+  });
+
+  /* buscador de endpoints */
+  const searchInput = $("#nav-search");
+  searchInput.addEventListener("input", () => {
+    const q = searchInput.value.trim().toLowerCase();
+    const links = document.querySelectorAll("#nav a");
+    let visible = 0;
+    links.forEach(a => {
+      const hay = (a.textContent + " " + (a.dataset.kw || "")).toLowerCase();
+      const match = !q || hay.includes(q);
+      a.classList.toggle("nav-hidden", !match);
+      if (match) visible++;
+    });
+    document.querySelectorAll("#nav .nav-label").forEach(l => l.classList.toggle("nav-hidden", Boolean(q)));
+    document.querySelectorAll("#nav .navgroup").forEach(g => {
+      const any = g.querySelectorAll(".group-items a:not(.nav-hidden)").length > 0;
+      g.classList.toggle("nav-hidden", q && !any);
+      // con búsqueda activa se expanden los grupos con match; al limpiar vuelven al colapsado por defecto
+      const expand = Boolean(q && any);
+      g.classList.toggle("collapsed", !expand);
+      g.querySelector(".group-toggle").setAttribute("aria-expanded", String(expand));
+    });
+    $("#nav-empty").hidden = !(q && visible === 0);
+  });
+  searchInput.addEventListener("keydown", e => {
+    if (e.key === "Escape") { searchInput.value = ""; searchInput.dispatchEvent(new Event("input")); }
+  });
+})();
+
+/* Copy en todos los bloques de código estáticos (los de tabs ya lo traen). */
+document.querySelectorAll("#content pre").forEach(pre => {
+  if (pre.closest(".codewrap")) return;
+  const wrap = document.createElement("div");
+  wrap.className = "codewrap";
+  pre.parentNode.insertBefore(wrap, pre);
+  const btn = document.createElement("button");
+  btn.className = "copy-btn";
+  btn.textContent = "Copy";
+  wrap.appendChild(btn);
+  wrap.appendChild(pre);
+});
+
+/* Credenciales: se limpia todo espacio/invisible al pegar — el fallo típico es un
+   token copiado con salto de línea o espacio final que rompe la firma en silencio. */
+["c-pub", "c-priv"].forEach(id => {
+  const el = $("#" + id);
+  el.addEventListener("input", () => {
+    const clean = el.value.replace(/\s+/g, "");
+    if (clean !== el.value) el.value = clean;
+  });
+});
+
+/* Ejemplo DATE_INVALID siempre vigente: estampa la hora real de la visita. */
+(function () {
+  const c = $("#code-dateinvalid");
+  if (c) c.textContent = c.textContent.replaceAll("2026-07-17T14:20:30Z", cleanIsoNow());
+})();
+
+/* ------------------------------------------------------------ credentials */
+const LS_KEY = "granve-docs-console";
+function loadCreds() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; }
+}
+function saveCreds() {
+  localStorage.setItem(LS_KEY, JSON.stringify({
+    env: $("#c-env").value,
+    pub: $("#c-pub").value,
+  }));
+}
+function baseUrl() {
+  return $("#c-env").value.replace(/\/+$/, "");
+}
+(function initConsole() {
+  const c = loadCreds();
+  // host sandbox antiguo (pre-rename) → al actual
+  if (c.env === "https://sandbox-api.granve.com") c.env = "https://api-sandbox.granve.com";
+  if (c.env && c.env !== "custom") $("#c-env").value = c.env;
+  if (c.pub) $("#c-pub").value = c.pub;
+  if (c.priv || c.custom) saveCreds(); // purge private tokens / custom URLs persisted by older versions of this page
+  ["c-env", "c-pub"].forEach(id =>
+    $("#" + id).addEventListener("input", () => { saveCreds(); renderAllSamples(); }));
+
+  async function loadPrivKey() {
+    const raw = $("#c-priv").value.trim();
+    const state = $("#c-priv-state");
+    if (!raw) { state.textContent = "Nothing to load — paste your key first."; return; }
+    if (!$("#c-priv").checkValidity()) {
+      state.textContent = "That does not look like a private token (prscr-…, 40 characters). Check for typos.";
+      return;
+    }
+    if (!window.crypto || !window.crypto.subtle) {
+      state.textContent = "Unavailable: this page must run over https (or localhost).";
+      return;
+    }
+    try {
+      privKey = await importPrivateKey(raw);
+      $("#c-priv").value = "";
+      $("#c-priv").placeholder = "●●●●●●●●  key loaded";
+      state.textContent = "Key loaded ✓ — memory only, non-extractable; gone when you close or reload the page.";
+      fillPaymentMethod(state);
+    } catch (err) {
+      state.textContent = "Could not import the key: " + err.message;
+    }
+  }
+
+  /* `payment` venía con un placeholder que el API rechaza con 400 "unsupported payment method":
+     el Run de POST /v1.0/payment —el primero que prueba un integrador— no podía dar 200 tal como
+     se sirve la página. Con la clave ya cargada se puede leer el catálogo real de la cuenta y
+     sustituirlo, en los ejemplos copiables y en el editor del panel. Un fallo aquí deja el
+     placeholder y explica qué hacer a mano: nunca debe impedir usar la consola. */
+  async function fillPaymentMethod(state) {
+    const editors = [...document.querySelectorAll(".tryit .body-editor")]
+      .filter(t => t.value.includes(METHOD_PLACEHOLDER));
+    if (! editors.length && CREATE_BODY.payment !== METHOD_PLACEHOLDER) return;
+    try {
+      const date = cleanIsoNow();
+      const res = await fetch(baseUrl() + "/v1.0/payment-methods", {
+        headers: {
+          "Authorization": "Bearer " + $("#c-pub").value.trim(),
+          "X-Date": date,
+          "X-Sign": await signWithPrivateKey(date),
+        },
+      });
+      if (! res.ok) throw new Error("HTTP " + res.status);
+      const id = (await res.json())[0]?.id;
+      if (! id) throw new Error("no payment methods are enabled on this account");
+      CREATE_BODY.payment = id;
+      renderAllSamples();
+      editors.forEach(t => { t.value = t.value.replaceAll(METHOD_PLACEHOLDER, id); });
+      state.textContent += ` Payment method “${id}” filled in from your account.`;
+    } catch (err) {
+      state.textContent += ` Could not read your payment methods (${err.message}) — replace `
+        + `${METHOD_PLACEHOLDER} with an id from GET /v1.0/payment-methods before running POST /v1.0/payment.`;
+    }
+  }
+  $("#c-priv-load").addEventListener("click", loadPrivKey);
+  $("#c-priv").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); loadPrivKey(); } });
+
+  if (!window.isSecureContext || !window.crypto || !window.crypto.subtle) {
+    $("#crypto-warn").style.display = "";
+  }
+})();
+
+/* -------------------------------------------------------- code generators */
+const LANGS = ["Bash", "JavaScript", "Python", "PHP", "Go", "Java", "C"];
+
+function bodyLines(body, indent) {
+  return JSON.stringify(body, null, 2).split("\n").map((l, i) => (i === 0 ? l : indent + l)).join("\n");
+}
+
+const GEN = {
+  Bash(ctx) {
+    let s = `#!/usr/bin/env bash
+PUBLIC_TOKEN="your_public_token"
+PRIVATE_TOKEN="your_private_token"
+BASE_URL="${ctx.base}"
+
+DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+SIGN=$(printf '%s' "$DATE" | openssl dgst -sha256 -hmac "$PRIVATE_TOKEN" -hex | sed 's/^.* //')
+
+curl -s -X ${ctx.method} "$BASE_URL${ctx.path}" \\
+  -H "Authorization: Bearer $PUBLIC_TOKEN" \\
+  -H "X-Date: $DATE" \\
+  -H "X-Sign: $SIGN"`;
+    if (ctx.body) s += ` \\
+  -H "Content-Type: application/json" \\
+  -d '${JSON.stringify(ctx.body, null, 2)}'`;
+    return s;
+  },
+
+  JavaScript(ctx) {
+    let s = `// Node.js 18+ (built-in fetch) — works identically in the browser.
+const crypto = require('crypto');
+
+const PUBLIC_TOKEN = 'your_public_token';
+const PRIVATE_TOKEN = 'your_private_token';
+const BASE_URL = '${ctx.base}';
+
+const date = new Date().toISOString().replace(/\\.\\d+Z$/, 'Z');
+const sign = crypto.createHmac('sha256', PRIVATE_TOKEN).update(date).digest('hex');
+
+const res = await fetch(\`\${BASE_URL}${ctx.path}\`, {
+  method: '${ctx.method}',
+  headers: {
+    'Authorization': \`Bearer \${PUBLIC_TOKEN}\`,
+    'X-Date': date,
+    'X-Sign': sign,`;
+    if (ctx.body) s += `
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify(${bodyLines(ctx.body, "  ")}),
+});`;
+    else s += `
+  },
+});`;
+    s += `
+console.log(res.status, await res.json());`;
+    return s;
+  },
+
+  Python(ctx) {
+    let s = `import hashlib
+import hmac
+import time
+
+import requests
+
+PUBLIC_TOKEN = 'your_public_token'
+PRIVATE_TOKEN = 'your_private_token'
+BASE_URL = '${ctx.base}'
+
+date = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+sign = hmac.new(PRIVATE_TOKEN.encode(), date.encode(), hashlib.sha256).hexdigest()
+
+headers = {
+    'Authorization': f'Bearer {PUBLIC_TOKEN}',
+    'X-Date': date,
+    'X-Sign': sign,
+}
+`;
+    if (ctx.body) s += `payload = ${JSON.stringify(ctx.body, null, 4).replace(/null/g, "None")}
+
+r = requests.${ctx.method.toLowerCase()}(f'{BASE_URL}${ctx.path}', json=payload, headers=headers)`;
+    else s += `r = requests.${ctx.method.toLowerCase()}(f'{BASE_URL}${ctx.path}', headers=headers)`;
+    s += `
+print(r.status_code, r.json())`;
+    return s;
+  },
+
+  PHP(ctx) {
+    let s = `<?php
+
+$publicToken = 'your_public_token';
+$privateToken = 'your_private_token';
+$baseUrl = '${ctx.base}';
+
+$date = gmdate('Y-m-d\\TH:i:s\\Z');
+$sign = hash_hmac('sha256', $date, $privateToken);
+
+$ch = curl_init($baseUrl . '${ctx.path}');
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Authorization: Bearer ' . $publicToken,
+    'X-Date: ' . $date,
+    'X-Sign: ' . $sign,`;
+    if (ctx.body) s += `
+    'Content-Type: application/json',
+]);
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(${phpArray(ctx.body)}));`;
+    else s += `
+]);`;
+    s += `
+
+$response = curl_exec($ch);
+echo curl_getinfo($ch, CURLINFO_HTTP_CODE), PHP_EOL, $response, PHP_EOL;`;
+    return s;
+  },
+
+  Go(ctx) {
+    let s = `package main
+
+import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+)
+
+func main() {
+	publicToken := "your_public_token"
+	privateToken := "your_private_token"
+	baseURL := "${ctx.base}"
+
+	date := time.Now().UTC().Format("2006-01-02T15:04:05Z")
+	mac := hmac.New(sha256.New, []byte(privateToken))
+	mac.Write([]byte(date))
+	sign := hex.EncodeToString(mac.Sum(nil))
+
+`;
+    if (ctx.body) s += `	body := \`${JSON.stringify(ctx.body)}\`
+	req, _ := http.NewRequest("${ctx.method}", baseURL+"${ctx.path}", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+`;
+    else s += `	req, _ := http.NewRequest("${ctx.method}", baseURL+"${ctx.path}", strings.NewReader(""))
+`;
+    s += `	req.Header.Set("Authorization", "Bearer "+publicToken)
+	req.Header.Set("X-Date", date)
+	req.Header.Set("X-Sign", sign)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.StatusCode, string(out))
+}`;
+    return s;
+  },
+
+  Java(ctx) {
+    let s = `import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.ZonedDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+
+public class GranveRequest {
+    public static void main(String[] args) throws Exception {
+        String publicToken = "your_public_token";
+        String privateToken = "your_private_token";
+        String baseUrl = "${ctx.base}";
+
+        String date = ZonedDateTime.now(ZoneOffset.UTC)
+            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));
+
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(privateToken.getBytes("UTF-8"), "HmacSHA256"));
+        StringBuilder sign = new StringBuilder();
+        for (byte b : mac.doFinal(date.getBytes("UTF-8"))) {
+            sign.append(String.format("%02x", b));
+        }
+
+`;
+    if (ctx.body) s += `        String body = ${JSON.stringify(JSON.stringify(ctx.body))};
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(baseUrl + "${ctx.path}"))
+            .header("Authorization", "Bearer " + publicToken)
+            .header("X-Date", date)
+            .header("X-Sign", sign.toString())
+            .header("Content-Type", "application/json")
+            .method("${ctx.method}", HttpRequest.BodyPublishers.ofString(body))
+            .build();
+`;
+    else s += `        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(baseUrl + "${ctx.path}"))
+            .header("Authorization", "Bearer " + publicToken)
+            .header("X-Date", date)
+            .header("X-Sign", sign.toString())
+            .GET()
+            .build();
+`;
+    s += `
+        HttpResponse<String> response = HttpClient.newHttpClient()
+            .send(request, HttpResponse.BodyHandlers.ofString());
+        System.out.println(response.statusCode() + " " + response.body());
+    }
+}`;
+    return s;
+  },
+
+  C(ctx) {
+    let s = `/* cc granve_request.c -lcurl -lcrypto */
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include <curl/curl.h>
+#include <openssl/hmac.h>
+
+#define BASE_URL "${ctx.base}"
+
+int main(void) {
+    const char *public_token = "your_public_token";
+    const char *private_token = "your_private_token";
+
+    char date[32];
+    time_t now = time(NULL);
+    strftime(date, sizeof date, "%Y-%m-%dT%H:%M:%SZ", gmtime(&now));
+
+    unsigned char *digest = HMAC(EVP_sha256(),
+        private_token, (int) strlen(private_token),
+        (const unsigned char *) date, strlen(date), NULL, NULL);
+    char sign[65];
+    for (int i = 0; i < 32; i++) {
+        sprintf(sign + i * 2, "%02x", digest[i]);
+    }
+
+    char header_auth[256], header_date[64], header_sign[96];
+    snprintf(header_auth, sizeof header_auth, "Authorization: Bearer %s", public_token);
+    snprintf(header_date, sizeof header_date, "X-Date: %s", date);
+    snprintf(header_sign, sizeof header_sign, "X-Sign: %s", sign);
+
+    CURL *curl = curl_easy_init();
+    struct curl_slist *headers = NULL;
+    headers = curl_slist_append(headers, header_auth);
+    headers = curl_slist_append(headers, header_date);
+    headers = curl_slist_append(headers, header_sign);
+`;
+    if (ctx.body) s += `    headers = curl_slist_append(headers, "Content-Type: application/json");
+    const char *body = ${JSON.stringify(JSON.stringify(ctx.body))};
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
+`;
+    s += `    curl_easy_setopt(curl, CURLOPT_URL, BASE_URL "${ctx.path}");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "${ctx.method}");
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        fprintf(stderr, "error: %s\\n", curl_easy_strerror(res));
+    }
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    return 0;
+}`;
+    return s;
+  },
+};
+
+function phpValue(v, indent) {
+  if (v === null) return "null";
+  if (typeof v === "number") return String(v);
+  if (typeof v === "object") {
+    const inner = Object.entries(v)
+      .map(([k, x]) => `${indent}    '${k}' => ${phpValue(x, indent + "    ")}`)
+      .join(",\n");
+    return `[\n${inner},\n${indent}]`;
+  }
+  return `'${String(v).replace(/'/g, "\\'")}'`;
+}
+function phpArray(obj) {
+  return phpValue(obj, "");
+}
+
+/* ----------------------------------------------------------- registry */
+// Un solo sitio define el placeholder: `fillPaymentMethod` lo sustituye por un id real de la
+// cuenta en cuanto hay clave cargada.
+const METHOD_PLACEHOLDER = "YOURMETHODTOKEN";
+const CREATE_BODY = {
+  payment: METHOD_PLACEHOLDER,
+  amount: "100.00",
+  email: "user@example.com",
+  order: "ORDER0001",
+  description: "Lorem ipsum dolor sit",
+  payer: {
+    document: "V15427089",
+    phone: "04125837194",
+    bank: "0102",
+    reference: "12345678",
+    date: "2026-01-01",
+  },
+  return_url: "https://yourdomain.com/checkout/done?cart_id=6234&ref=abc123",
+  notify_url: "https://yourdomain.com/hooks/granve?source=web",
+  metadata: {
+    customer_id: "cus_00123",
+    invoice: "INV-2026-014",
+  },
+};
+
+const ENDPOINTS = [
+  {
+    id: "payment-create",
+    method: "POST",
+    path: "/v1.0/payment",
+    title: "Create a payment order",
+    desc: `Creates a payment order for your account and returns the <a href="#payin">payment order object</a>,
+including the <code>redirect_url</code> where you must send your customer to pay. Store the returned
+<code>id</code>: it is the identifier for every later query.
+<p>When the order reaches a terminal state, the result is delivered as described in
+<a href="#webhooks">Webhooks &amp; return URL</a>.</p>
+<div class="note"><strong>Idempotency on timeout:</strong> your <code>order</code> is the
+<a href="#idempotency">idempotency key</a>. If a <code>POST /v1.0/payment</code> times out with no response, <strong>retry
+with the same <code>order</code></strong>. A <code>409</code> means the first request already
+created it — never a duplicate; recover the order with
+<a href="#payment-get-order"><code>GET /v1.0/payment/order/{order}</code></a> to read its
+<code>id</code> and <code>redirect_url</code>. Never generate a new <code>order</code> for a retry:
+that is how double charges happen.</div>
+<div class="note"><strong>When a new <code>order</code> IS correct:</strong> an <code>order</code> is
+consumed permanently, even when nothing is charged. A payment that ended <code>declined</code>,
+<code>expired</code>, <code>canceled_user</code>, <code>canceled_system</code> or
+<code>attempts_exhausted</code> charged nothing, but its <code>order</code> can never be reused —
+charging that customer again requires a <strong>new</strong> <code>order</code>. This is safe because
+those are <em>settled</em> outcomes, not unknown ones: the rule above protects you from retrying
+something that may have succeeded. The <code>409</code> distinguishes the two cases in
+<code>error.hint</code>.</div>`,
+    fieldsTitle: "Body parameters",
+    fields: [
+      ["payment", "string", true, "Id of the payment method to charge with — list the ones enabled for your account with <a href=\"#tools-methods\">GET /v1.0/payment-methods</a>.", "^[A-Za-z0-9_-]+$"],
+      ["amount", "string | number", true, "Amount to charge. Decimal with up to 2 places; minimum <strong>5 VES</strong>.", "^\\d+(\\.\\d{1,2})?$"],
+      ["email", "string", true, "Payer's email. Must be a valid address.", "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"],
+      ["order", "string", true, "Your unique order identifier — letters, digits and hyphens, up to 50 characters. Reusing an existing value returns <code>409</code>.", "^[a-zA-Z0-9-]{1,50}$"],
+      ["description", "string", true, "Description of the product or service — 2–100 characters: letters, digits and spaces. Accents are folded to plain letters (á→a, ñ→n); any other character is removed.", "^[a-zA-Z0-9 ]{2,100}$"],
+      ["payer", "object", false, "<p style='margin:0 0 6px'>The payer object — identity plus, when the customer already paid by mobile payment, the proof so Granve can <strong>verify it against the bank in the background</strong> instead of asking again on the hosted page. Every sub-field is optional, but a sub-field that is <strong>present and malformed returns <code>400</code></strong> — it is never silently dropped:</p><div class='subfields'><div class='sf'><div class='sf-head'><code>document</code><span class='sf-fmt'>V15427089</span></div><div class='sf-desc'>Payer's document: type letter (V, E, J) + 7-10 digits.</div></div><div class='sf'><div class='sf-head'><code>phone</code><span class='sf-fmt'>04XXNNNNNNN</span></div><div class='sf-desc'>Payer's phone (prefixes 0412, 0414, 0416, 0422, 0424, 0426).</div></div><div class='sf'><div class='sf-head'><code>bank</code><span class='sf-fmt'>0102</span></div><div class='sf-desc'>4-digit bank code — one returned by <a href='#tools-banks'>GET /v1.0/banks</a>.</div></div><div class='sf'><div class='sf-head'><code>reference</code><span class='sf-fmt'>4-14 digits</span></div><div class='sf-desc'>Reference number of the mobile payment.</div></div><div class='sf'><div class='sf-head'><code>date</code><span class='sf-fmt'>YYYY-MM-DD</span></div><div class='sf-desc'>Date the payment was made. Must not be in the future.</div></div></div>"],
+      ["return_url", "string", true, "Where the payer's browser is sent back after the hosted payment page, <strong>for this order</strong>. Any query string you include is kept — we add <code>?id=…&amp;status=…&amp;order=…</code> on top (so don't use <code>id</code>, <code>status</code> or <code>order</code> as your own parameter names). Must be an absolute <code>https</code> URL with no embedded credentials, up to 255 characters.", "^https://.{1,247}$"],
+      ["notify_url", "string", true, "Where Granve <code>POST</code>s this order's result when it reaches a terminal state (see <a href=\"#webhooks\">Webhooks</a>). Same format rules as <code>return_url</code>, and your own query string is kept the same way.", "^https://.{1,247}$"],
+      ["metadata", "object", false, "Free key/value object you attach to the order — stored and echoed back inside <code>merchant.metadata</code> in every response. Up to 50 keys or 2&nbsp;KB. Purely opaque: no key inside <code>metadata</code> changes how the order is processed."],
+    ],
+    body: CREATE_BODY,
+    responses: `<h4>Response <code>200</code></h4>
+<p>The full <a href="#payin">payment order object</a>, with <code>status = "created"</code>.</p>
+<h4>Response <code>400</code> — validation error</h4>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "code": "invalid_request",
+    "message": "Validation failed.",
+    "fields": { "amount": "must be at least 5 VES" },
+    "request_id": "req_…"
+  }
+}</code></pre>
+<h4>Response <code>409</code> — duplicate order</h4>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "code": "invalid_request",
+    "message": "The request conflicts with an existing resource.",
+    "fields": { "order": "already exists" },
+    "request_id": "req_…"
+  }
+}</code></pre>`,
+    tryit: { bodyEditor: true },
+  },
+  {
+    id: "payment-list",
+    method: "GET",
+    path: "/v1.0/payment",
+    title: "List payment orders",
+    desc: `Returns the payment orders of your account as an array of
+<a href="#payin">payment order objects</a>, newest first. <strong>Without dates the range
+defaults to today only</strong>; an empty result is <code>200 []</code>.
+<p>For large volumes use <strong>keyset pagination</strong>: read the <code>X-Next-Cursor</code>
+response header and pass it back as <code>after_id</code> to fetch the next page. It is faster and
+more stable than <code>page</code> for deep listings.</p>`,
+    fieldsTitle: "Query parameters",
+    fields: [
+      ["start_date", "date", false, "Filter start date (<code>YYYY-MM-DD</code>). Defaults to today; must not be in the future.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["end_date", "date", false, "Filter end date (<code>YYYY-MM-DD</code>). Defaults to today; must not be in the future. The range may span at most <strong>92 days</strong>.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["per_page", "integer", false, "Records per page: 10–5000. Default 5000.", "^\\d+$"],
+      ["page", "integer", false, "Page number (offset pagination), starting at 1.", "^[1-9]\\d*$"],
+      ["after_id", "integer", false, "Keyset cursor: pass the <code>X-Next-Cursor</code> header from the previous page to fetch records after it.", "^[1-9]\\d*$"],
+    ],
+    responses: `<h4>Response <code>200</code></h4>
+<p>JSON array of payment order objects. Response headers:</p>
+<table>
+  <tr><th>Header</th><th>Meaning</th></tr>
+  <tr><td><code>X-Next-Cursor</code></td><td>Cursor for the next page — pass it as <code>after_id</code>.</td></tr>
+  <tr><td><code>X-Total</code></td><td>Total records for the filter (sent on the first page).</td></tr>
+</table>`,
+    query: [
+      ["start_date", DATE_START],
+      ["end_date", DATE_END],
+      ["per_page", "50"],
+      ["order", "DESC"],
+      ["after_id", ""],
+    ],
+    tryit: { query: true },
+  },
+  {
+    id: "payment-get",
+    method: "GET",
+    path: "/v1.0/payment/{id}",
+    title: "Get a payment order by id",
+    desc: `Retrieves one payment order using the <code>id</code> returned by
+<a href="#payment-create">Create</a>.`,
+    fieldsTitle: "Path parameters",
+    fields: [
+      ["id", "string", true, "The payment order id (e.g. <code>pi_000000000000…</code>).", "^pi_[a-f0-9]{32}$"],
+    ],
+    responses: `<h4>Response <code>200</code></h4>
+<p>The <a href="#payin">payment order object</a>.</p>
+<h4>Response <code>404</code></h4>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "code": "not_found",
+    "message": "Resource not found.",
+    "request_id": "req_…"
+  }
+}</code></pre>`,
+    pathParams: [["id", "pi_00000000000000000000000000000000"]],
+    tryit: { path: true },
+  },
+  {
+    id: "payment-get-order",
+    method: "GET",
+    path: "/v1.0/payment/order/{order}",
+    title: "Get a payment order by your order id",
+    desc: `Retrieves one payment order using <strong>your own</strong> <code>order</code> identifier
+(the one you sent on <a href="#payment-create">Create</a>) instead of the Granve <code>id</code>.`,
+    fieldsTitle: "Path parameters",
+    fields: [
+      ["order", "string", true, "Your order identifier (e.g. <code>ORDER0001</code>).", "^[a-zA-Z0-9-]{1,50}$"],
+    ],
+    responses: `<h4>Response <code>200</code></h4>
+<p>The <a href="#payin">payment order object</a>.</p>
+<h4>Response <code>404</code></h4>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "code": "not_found",
+    "message": "Resource not found.",
+    "request_id": "req_…"
+  }
+}</code></pre>`,
+    pathParams: [["order", "ORDER0001"]],
+    tryit: { path: true },
+  },
+  {
+    id: "payout-create",
+    method: "POST",
+    path: "/v1.0/payout",
+    title: "Create a payout",
+    desc: `Creates a payout to a beneficiary and debits your wallet (amount + fee). Returns the
+<a href="#payout">payout object</a>; store its <code>id</code> to query the state later.
+<p>The destination is defined by <code>bank.num</code>: an <strong>11-digit mobile number</strong>
+selects Pago Móvil (then <code>bank.code</code> is required); a <strong>20-digit account
+number</strong> selects bank transfer (then <code>bank.type</code> is required and the bank is taken
+from the account's first 4 digits).</p>
+<div class="note"><strong>Idempotency on timeout:</strong> your <code>order</code> is the
+<a href="#idempotency">idempotency key</a>. If this request times out with no response, <strong>retry with the same
+<code>order</code></strong> — a <code>409</code> means the first request already ran and your
+wallet was debited only once. Recover it with
+<a href="#payout-get-order"><code>GET /v1.0/payout/order/{order}</code></a>. Never generate a new
+<code>order</code> for a retry: that is how double withdrawals happen.</div>
+<div class="note"><strong>When a new <code>order</code> IS correct:</strong> an <code>order</code> is
+consumed permanently, even when the payout does not pay. If a previous payout ended
+<code>declined</code>, the amount was returned to your wallet and nothing was sent — but its
+<code>order</code> can never be reused, so paying that beneficiary again requires a
+<strong>new</strong> <code>order</code>. This is safe because <code>declined</code> is a
+<em>settled</em> outcome, not an unknown one. The <code>409</code> distinguishes the two cases in
+<code>error.hint</code>.</div>`,
+    fieldsTitle: "Body parameters",
+    fields: [
+      ["order", "string", true, "Your unique payout identifier — letters, digits and hyphens, up to 99 characters. Reusing a value returns <code>409</code>.", "^[a-zA-Z0-9-]{1,99}$"],
+      ["description", "string", true, "Concept of the payout — 5–200 characters: letters, digits and spaces. Accents are folded to plain letters (á→a, ñ→n); any other character is removed.", "^[a-zA-Z0-9 ]{5,200}$"],
+      ["amount", "integer", true, "Amount in VES, <strong>whole numbers only</strong> — payouts are whole-VES by design (unlike PayIn, which accepts decimals). Minimum 1.", "^[1-9]\\d*$"],
+      ["beneficiary.name", "string", true, "Beneficiary's name, 3–50 characters.", "^[a-zA-Z0-9 ]{3,50}$"],
+      ["beneficiary.document", "string", true, "Beneficiary's document: type letter (V, E, J) + 7–10 digits (e.g. <code>V00000000</code>).", "^[VEJ]\\d{7,10}$"],
+      ["beneficiary.email", "string", true, "Beneficiary's email, up to 100 characters.", "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"],
+      ["beneficiary.phone", "string", true, "Beneficiary's phone, 11 digits (prefixes 0412, 0414, 0416, 0422, 0424, 0426).", "^(0412|0414|0416|0422|0424|0426)\\d{7}$"],
+      ["bank.num", "string", true, "Destination: 11-digit mobile number (Pago Móvil) or 20-digit account number (transfer). <strong>Polymorphic</strong> — its length selects the method.", "^((0412|0414|0416|0422|0424|0426)\\d{7}|\\d{20})$"],
+      ["bank.code", "string", "conditional", "<strong>Required for Pago Móvil</strong> (11-digit num) — any code from <a href=\"#tools-banks\">GET /v1.0/banks</a>. Ignored for transfers (derived from the account number).", "^\\d{4}$"],
+      ["bank.type", "string", "conditional", "<strong>Required for transfers</strong> (20-digit num): <code>A</code> (savings) or <code>C</code> (checking). Not used for Pago Móvil.", "^[AC]$"],
+      ["metadata", "object", false, "Free key/value object you attach to the payout — stored and echoed back inside <code>merchant.metadata</code> in every response. Up to 50 keys or 2&nbsp;KB."],
+    ],
+    body: {
+      order: "PO-0001",
+      description: "Lorem ipsum payout",
+      amount: 100,
+      beneficiary: {
+        name: "Lorem Ipsum",
+        document: "V00000000",
+        email: "user@example.com",
+        phone: "04120000000",
+      },
+      bank: {
+        num: "04120000000",
+        code: "0102",
+      },
+      metadata: {
+        customer_id: "cus_00123",
+        invoice: "INV-2026-014",
+      },
+    },
+    responses: `<h4>Response <code>200</code></h4>
+<p>The <a href="#payout">payout object</a>, with <code>status = "created"</code>.</p>
+<h4>Response <code>400</code> — validation / insufficient balance</h4>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "code": "invalid_request",
+    "message": "Validation failed.",
+    "fields": { "bank.num": "must be 11 or 20 characters" },
+    "request_id": "req_…"
+  }
+}</code></pre>
+<h4>Response <code>409</code> — duplicate order</h4>
+<pre><code>{
+  "status": "failed",
+  "error": {
+    "code": "invalid_request",
+    "message": "The request conflicts with an existing resource.",
+    "fields": { "order": "already exists" },
+    "request_id": "req_…"
+  }
+}</code></pre>`,
+    tryit: { bodyEditor: true },
+  },
+  {
+    id: "payout-list",
+    method: "GET",
+    path: "/v1.0/payout",
+    title: "List payouts",
+    desc: `Returns the payouts of your account as an array of <a href="#payout">payout objects</a>,
+newest first.
+<p><strong>Without dates the range defaults to today only</strong> — a bare
+<code>GET /v1.0/payout</code> returns <code>200 []</code> if there were no payouts today. For
+history, pass <code>start_date</code>/<code>end_date</code>; for deep listings use keyset pagination with
+<code>after_id</code> + the <code>X-Next-Cursor</code> header, exactly like
+<a href="#payment-list">PayIn List</a>.</p>`,
+    fieldsTitle: "Query parameters",
+    fields: [
+      ["start_date", "date", false, "Filter start date (<code>YYYY-MM-DD</code>). Defaults to today; must not be in the future.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["end_date", "date", false, "Filter end date (<code>YYYY-MM-DD</code>). Defaults to today; must not be in the future. The range may span at most <strong>92 days</strong>.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["per_page", "integer", false, "Records per page: 10–5000. Default 5000.", "^\\d+$"],
+      ["page", "integer", false, "Page number (offset pagination), starting at 1.", "^[1-9]\\d*$"],
+      ["after_id", "integer", false, "Keyset cursor: pass the <code>X-Next-Cursor</code> header from the previous page to fetch records after it.", "^[1-9]\\d*$"],
+    ],
+    responses: `<h4>Response <code>200</code></h4>
+<p>JSON array of payout objects. Headers <code>X-Next-Cursor</code> (next page cursor) and
+<code>X-Total</code> (first page only).</p>
+`,
+    query: [
+      ["start_date", DATE_START],
+      ["end_date", DATE_END],
+      ["per_page", "50"],
+      ["order", "DESC"],
+      ["after_id", ""],
+    ],
+    tryit: { query: true },
+  },
+  {
+    id: "payout-get",
+    method: "GET",
+    path: "/v1.0/payout/{id}",
+    title: "Get a payout by id",
+    desc: `Retrieves one payout using the <code>id</code> returned by
+<a href="#payout-create">Create</a>. Lookups cover the last <strong>180 days</strong>.`,
+    fieldsTitle: "Path parameters",
+    fields: [
+      ["id", "string", true, "The payout id (e.g. <code>po_000000000000…</code>).", "^po_[a-f0-9]{32}$"],
+    ],
+    responses: `<h4>Response <code>200</code></h4>
+<p>The <a href="#payout">payout object</a>.</p>
+<h4>Response <code>404</code></h4>
+<p>Unknown id, or the payout is older than 180 days.</p>`,
+    pathParams: [["id", "po_00000000000000000000000000000000"]],
+    tryit: { path: true },
+  },
+  {
+    id: "payout-get-order",
+    method: "GET",
+    path: "/v1.0/payout/order/{order}",
+    title: "Get a payout by your order id",
+    desc: `Retrieves the payout for <strong>your own</strong> <code>order</code> identifier. Each
+<code>order</code> is unique to one payout and cannot be reused. Lookups cover the last
+<strong>180 days</strong>.`,
+    fieldsTitle: "Path parameters",
+    fields: [
+      ["order", "string", true, "Your payout identifier (the one you sent on Create).", "^[a-zA-Z0-9-]{1,99}$"],
+    ],
+    responses: `<h4>Response <code>200</code></h4>
+<p>The <a href="#payout">payout object</a>.</p>
+<h4>Response <code>404</code></h4>
+<p>No payout found for that order, or the payout is older than 180 days.</p>`,
+    pathParams: [["order", "PO-0001"]],
+    tryit: { path: true },
+  },
+  {
+    id: "wallet-balance",
+    method: "GET",
+    path: "/v1.0/wallet/balance",
+    title: "Get your balance",
+    desc: `Returns your wallet balance (VES): <code>available</code> (disbursable now) and <code>pending</code> (collected, not yet settled).`,
+    responses: `<h4>Response <code>200</code></h4>
+<pre><code>{
+  "available": "900.00",
+  "pending": "150.00",
+  "currency": "VES",
+  "livemode": false
+}</code></pre>
+<p><code>available</code> is what you can disburse now; <code>pending</code> is PayIn money
+collected but not yet settled into your wallet.</p>
+<h4>Response <code>404</code></h4>
+<p>No wallet is provisioned yet for the account.</p>`,
+    tryit: {},
+  },
+  {
+    id: "wallet-list",
+    method: "GET",
+    path: "/v1.0/wallet",
+    title: "List wallet movements",
+    desc: `Returns the wallet movements of your account as an array of
+<a href="#wallet">movement objects</a>. <strong>Without dates the range defaults to today
+only</strong> (empty result = <code>200 []</code>) — pass
+<code>start_date</code>/<code>end_date</code> for history.`,
+    fieldsTitle: "Query parameters",
+    fields: [
+      ["start_date", "date", false, "Filter start date (<code>YYYY-MM-DD</code>). Defaults to today.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["end_date", "date", false, "Filter end date (<code>YYYY-MM-DD</code>). Defaults to today.", "^\\d{4}-\\d{2}-\\d{2}$"],
+      ["per_page", "integer", false, "Records per page: 10–5000. Default 5000.", "^\\d+$"],
+      ["page", "integer", false, "Page number (offset pagination), starting at 1.", "^[1-9]\\d*$"],
+      ["sort", "string", false, "Sort by movement id: <code>ASC</code> or <code>DESC</code> (default).", "^(ASC|DESC)$"],
+    ],
+    responses: `<h4>Response <code>200</code></h4>
+<p>JSON array of movement objects. Headers <code>X-Page</code>, <code>X-Per-Page</code> and
+<code>X-Total</code>.</p>
+`,
+    query: [
+      ["start_date", DATE_START],
+      ["end_date", DATE_END],
+      ["per_page", "50"],
+      ["sort", "DESC"],
+    ],
+    tryit: { query: true },
+  },
+  {
+    id: "wallet-get",
+    method: "GET",
+    path: "/v1.0/wallet/{id}",
+    title: "Get a movement by id",
+    desc: `Retrieves one wallet movement by its <code>id</code>.`,
+    fieldsTitle: "Path parameters",
+    fields: [
+      ["id", "string", true, "The movement id (as returned in list responses).", "^\\d+$"],
+    ],
+    responses: `<h4>Response <code>200</code></h4>
+<p>The <a href="#wallet">movement object</a>.</p>
+<h4>Response <code>404</code></h4>
+<p>Unknown movement id.</p>`,
+    pathParams: [["id", "1000000000000002"]],
+    tryit: { path: true },
+  },
+  {
+    id: "tools-methods",
+    method: "GET",
+    path: "/v1.0/payment-methods",
+    title: "List your payment methods",
+    desc: `Returns the payment methods enabled for your account. Every <code>id</code> in this
+list is a valid value for the <code>payment</code> field of
+<a href="#payment-create">Create a payment order</a> — and vice versa: if it is not listed
+here, Create will reject it. The catalog rarely changes; cache it and refresh on demand.`,
+    responses: `<h4>Response <code>200</code></h4>
+<p>JSON array — one object per enabled method. An empty array means no methods are enabled
+for your account yet.</p>
+<pre><code>[
+  {
+    "id": "LOREMIPSUMP2C",
+    "name": "Lorem Ipsum",
+    "description": "Lorem ipsum dolor sit amet",
+    "type": "mobile_payment",
+    "currency": "VES",
+    "host2host": true
+  }
+]</code></pre>
+<p><code>type</code> is one of <code>mobile_payment</code>, <code>bank_transfer</code> or
+<code>card</code>.</p>
+<p><code>host2host</code> tells you whether <strong>your account</strong> can attach the payment
+proof on that method and skip the hosted page — that is, whether sending a complete
+<code>payer</code> object on <a href="#payment-create">Create</a> makes Granve verify it with the
+bank (<code>202</code>) instead of only returning a <code>redirect_url</code> (<code>200</code>).
+Two switches decide it: the method has to be offered with host2host, and your account has to be
+enabled for it — so <code>false</code> means either one. Check it here rather than assuming: it is
+per method <em>and</em> per account. To have it enabled, write to
+<a href="mailto:hola@granve.com">hola@granve.com</a>.</p>
+<p>When a host2host verification does not succeed you are notified straight away — see
+<a href="#host2host-failures">When a host2host verification fails</a>.</p>`,
+    tryit: {},
+  },
+  {
+    id: "tools-banks",
+    method: "GET",
+    path: "/v1.0/banks",
+    title: "List accepted banks",
+    desc: `Returns the bank catalog accepted by the API. Every <code>code</code> in this list is
+a valid value for <code>bank.code</code> on <a href="#payout-create">Create a payout</a> and for
+<code>payer.bank</code> on <a href="#payment-create">Create a payment order</a> — and vice
+versa. The catalog rarely changes; cache it and refresh on demand.`,
+    responses: `<h4>Response <code>200</code></h4>
+<p>JSON array — one object per accepted bank, ordered by code.</p>
+<pre><code>[
+  {
+    "code": "0102",
+    "name": "BANCO DE VENEZUELA"
+  },
+  {
+    "code": "0104",
+    "name": "BANCO VENEZOLANO DE CREDITO"
+  }
+]</code></pre>`,
+    tryit: {},
+  },
+];
+
+/* ----------------------------------------------------------- rendering */
+const WEBHOOK_VERIFY = {
+  Bash: `# Verify a Granve webhook — X-Sign = HMAC-SHA256("{X-Date}.{raw_body}", private_token)
+DATE="$HTTP_X_DATE"; SIGN="$HTTP_X_SIGN"; RAW="$(cat)"   # raw body on stdin
+EXPECTED=$(printf '%s' "$DATE.$RAW" \\
+  | openssl dgst -sha256 -hmac "$PRIVATE_TOKEN" -hex | sed 's/^.* //')
+[ "$EXPECTED" = "$SIGN" ] && echo valid || echo invalid   # also reject if DATE > 5 min old`,
+  JavaScript: `const crypto = require("crypto");
+// req.rawBody must hold the EXACT bytes received (keep your body parser from re-encoding).
+function verify(req, privateToken) {
+  const date = req.headers["x-date"] || "";
+  const sign = req.headers["x-sign"] || "";
+  const fresh = Math.abs(Date.now() / 1000 - Date.parse(date) / 1000) <= 300;
+  const expected = crypto.createHmac("sha256", privateToken)
+    .update(date + "." + req.rawBody).digest("hex");
+  return fresh && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sign));
+}`,
+  Python: `import hmac, hashlib, time
+from datetime import datetime, timezone
+
+def verify(headers, raw_body, private_token):
+    date = headers.get("X-Date", "")
+    sign = headers.get("X-Sign", "")
+    ts = datetime.strptime(date, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
+    fresh = abs(time.time() - ts) <= 300
+    expected = hmac.new(private_token.encode(), f"{date}.{raw_body}".encode(),
+                        hashlib.sha256).hexdigest()
+    return fresh and hmac.compare_digest(expected, sign)`,
+  PHP: `$date = $_SERVER['HTTP_X_DATE'] ?? '';
+$sign = $_SERVER['HTTP_X_SIGN'] ?? '';
+$raw  = file_get_contents('php://input');   // the EXACT bytes received
+
+$valid = abs(time() - strtotime($date)) <= 300
+    && hash_equals(hash_hmac('sha256', $date . '.' . $raw, $your_private_token), $sign);`,
+  Go: `import (
+    "crypto/hmac"
+    "crypto/sha256"
+    "encoding/hex"
+    "time"
+)
+
+func verify(date, sign, rawBody, privateToken string) bool {
+    t, err := time.Parse(time.RFC3339, date)
+    if err != nil || time.Since(t).Abs() > 5*time.Minute {
+        return false
+    }
+    mac := hmac.New(sha256.New, []byte(privateToken))
+    mac.Write([]byte(date + "." + rawBody))
+    expected := hex.EncodeToString(mac.Sum(nil))
+    return hmac.Equal([]byte(expected), []byte(sign))
+}`,
+  Java: `import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.security.MessageDigest;
+import java.time.Instant;
+
+boolean verify(String date, String sign, String rawBody, String key) throws Exception {
+    if (Math.abs(Instant.now().getEpochSecond() - Instant.parse(date).getEpochSecond()) > 300)
+        return false;
+    Mac mac = Mac.getInstance("HmacSHA256");
+    mac.init(new SecretKeySpec(key.getBytes(), "HmacSHA256"));
+    byte[] raw = mac.doFinal((date + "." + rawBody).getBytes());
+    StringBuilder hex = new StringBuilder();
+    for (byte b : raw) hex.append(String.format("%02x", b));
+    return MessageDigest.isEqual(hex.toString().getBytes(), sign.getBytes());
+}`,
+  C: `/* cc verify.c -lcrypto */
+#include <openssl/hmac.h>
+#include <stdio.h>
+#include <string.h>
+
+int verify(const char *date, const char *sign,
+           const char *raw_body, const char *private_token) {
+    char data[8192];
+    snprintf(data, sizeof data, "%s.%s", date, raw_body);   /* X-Date . raw_body */
+
+    unsigned char *d = HMAC(EVP_sha256(), private_token, (int) strlen(private_token),
+        (const unsigned char *) data, strlen(data), NULL, NULL);
+
+    char expected[65];
+    for (int i = 0; i < 32; i++) sprintf(expected + i * 2, "%02x", d[i]);
+    return strcmp(expected, sign) == 0;   /* also reject if \`date\` is > 5 min old */
+}`,
+};
+
+function tabsHtml(id) {
+  return `<div class="tabs" data-for="${id}">` +
+    LANGS.map((l, i) => `<button class="${i === 0 ? "active" : ""}" data-lang="${l}">${l}</button>`).join("") +
+    `</div>
+    <div class="codewrap"><button class="copy-btn">Copy</button><pre><code id="code-${id}"></code></pre></div>`;
+}
+
+function endpointCtx(ep) {
+  const base = baseUrl() || "https://api-sandbox.granve.com";
+  let path = ep.path;
+  (ep.pathParams || []).forEach(([k, v]) => { path = path.replace("{" + k + "}", v); });
+  if (ep.query) {
+    const qs = ep.query.filter(([, v]) => v).map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
+    if (qs) path += "?" + qs;
+  }
+  return { method: ep.method, base, path, body: ep.body || null };
+}
+
+function renderSample(id, ctx) {
+  const tabs = document.querySelector(`.tabs[data-for="${id}"]`);
+  if (!tabs) return;
+  const active = tabs.querySelector("button.active").dataset.lang;
+  $("#code-" + id).textContent = GEN[active](ctx);
+}
+
+function renderAllSamples() {
+  ENDPOINTS.forEach(ep => renderSample(ep.id, endpointCtx(ep)));
+  renderSample("auth", {
+    method: "GET",
+    base: baseUrl() || "https://api-sandbox.granve.com",
+    path: "/v1.0/payment/pi_00000000000000000000000000000000",
+    body: null,
+  });
+  renderSample("quickstart", {
+    method: "POST",
+    base: baseUrl() || "https://api-sandbox.granve.com",
+    path: "/v1.0/payment",
+    body: CREATE_BODY,
+  });
+  const wv = document.querySelector('.tabs[data-for="webhook-verify"]');
+  if (wv) {
+    const lang = wv.querySelector("button.active").dataset.lang;
+    $("#code-webhook-verify").textContent = WEBHOOK_VERIFY[lang] || WEBHOOK_VERIFY.PHP;
+  }
+}
+
+function fieldsTable(ep) {
+  if (!ep.fields) return "";
+  const rows = ep.fields.map(([name, type, req, desc, rx]) =>
+    `<tr><td><code class="fname">${name}</code><br>${req === "conditional" ? '<span class="cond">conditional</span>' : `<span class="${req ? "req" : "opt"}">${req ? "required" : "optional"}</span>`}</td>` +
+    `<td>${type}</td><td>${rx ? `<code class="rx">${esc(rx)}</code>` : "—"}</td><td>${desc}</td></tr>`).join("");
+  return `<h4>${ep.fieldsTitle}</h4>
+  <table><tr><th>Field</th><th>Type</th><th>Format (regex)</th><th>Description</th></tr>${rows}</table>`;
+}
+
+/* Input tipado por parámetro: calendario para fechas, numérico para páginas/cursores,
+   select para enums — el navegador impide valores imposibles antes de llegar al API. */
+function queryInputHtml(k, v) {
+  if (k === "start_date" || k === "end_date") {
+    return `<input class="mono" type="date" data-qpar="${k}" value="${esc(v)}" max="${DATE_END}" aria-label="${k}">`;
+  }
+  if (k === "per_page") {
+    return `<input class="mono" type="number" data-qpar="${k}" value="${esc(v)}" min="10" max="5000" step="1" aria-label="${k}">`;
+  }
+  if (k === "page" || k === "after_id") {
+    return `<input class="mono" type="number" data-qpar="${k}" value="${esc(v)}" min="1" step="1" aria-label="${k}">`;
+  }
+  if (k === "order") {
+    const opts = ["DESC", "ASC"].map(o => `<option${o === v ? " selected" : ""}>${o}</option>`).join("");
+    return `<select class="mono" data-qpar="${k}" aria-label="${k}">${opts}</select>`;
+  }
+  return `<input class="mono" data-qpar="${k}" value="${esc(v)}" aria-label="${k}">`;
+}
+
+function tryitHtml(ep) {
+  // El pattern nativo reusa la MISMA regex de la columna Format del endpoint (sin anclas:
+  // el atributo pattern ancla implícito) — un solo lugar define el formato.
+  // El atributo `pattern` se compila con el flag `v`, donde un `-` literal dentro de una clase
+  // debe ir escapado. `[a-zA-Z0-9-]` no compila, y ante un pattern inválido el navegador IGNORA
+  // el atributo entero: la validación de formato quedaba muerta en silencio (checkValidity()
+  // devolvía true con cualquier basura). Se escapa el guión que no forma rango — pegado a `]`
+  // o a `[` — sin tocar la regex que se muestra en la columna Format.
+  const vSafe = rx => rx.replace(/\[(?:[^\]\\]|\\.)*\]/g, cls =>
+    cls.replace(/([^\\[])-(?=\])/g, "$1\\-").replace(/^\[-/, "[\\-"));
+  const patternFor = k => {
+    const f = (ep.fields || []).find(f => f[0] === k);
+    if (!f || !f[4]) return "";
+    const rx = vSafe(f[4].replace(/^\^/, "").replace(/\$$/, ""));
+    return ` pattern="${esc(rx)}" title="Format: ${esc(f[4])}"`;
+  };
+  let inner = "";
+  if (ep.tryit.path) {
+    inner += `<div class="fields">` + ep.pathParams.map(([k, v]) =>
+      `<div class="f"><label>${k}</label><input class="mono" data-ppar="${k}" value="${esc(v)}"${patternFor(k)} required spellcheck="false" autocapitalize="off" aria-label="${k}"></div>`).join("") + `</div>`;
+  }
+  if (ep.tryit.query) {
+    inner += `<div class="fields">` + ep.query.map(([k, v]) =>
+      `<div class="f"><label>${k}</label>${queryInputHtml(k, v)}</div>`).join("") + `</div>`;
+  }
+  if (ep.tryit.bodyEditor) {
+    inner += `<label style="font-size:12px;font-weight:600;color:var(--fg2)">Request body (JSON)</label>
+    <textarea class="body-editor" aria-label="Request body (JSON)">${esc(JSON.stringify(ep.body, null, 2))}</textarea>`;
+  }
+  return `<div class="tryit" data-ep="${ep.id}">
+    <h4>Run this request</h4>
+    ${inner}
+    <button class="run-btn">Run ▸</button>
+    <div class="result"><div class="status"></div><div class="rheaders"></div><pre><code></code></pre></div>
+  </div>`;
+}
+
+function renderEndpoint(ep) {
+  const el = document.getElementById(ep.id);
+  el.innerHTML = `
+    <h3 style="margin-top:40px">${ep.title}</h3>
+    <div class="endpoint-head">
+      <span class="badge ${ep.method.toLowerCase()}">${ep.method}</span>
+      <span class="path">${ep.path}</span>
+    </div>
+    <div class="split">
+      <div class="doc">
+        <div>${ep.desc}</div>
+        ${fieldsTable(ep)}
+        ${ep.responses}
+      </div>
+      <div class="codecol">
+        <h4>Request example</h4>
+        ${tabsHtml(ep.id)}
+        ${tryitHtml(ep)}
+      </div>
+    </div>
+  `;
+}
+
+ENDPOINTS.forEach(renderEndpoint);
+
+/* ----------------------------------------------------------- scrollspy
+   Señala en el menú la sección que el lector tiene en pantalla y abre su grupo
+   (cerrando los demás — acordeón). Los h2 de grupo (payin/payout/wallet/tools)
+   no tienen link propio: activan su grupo sin marcar link. */
+(function initScrollspy() {
+  const links = [...document.querySelectorAll('#nav a[href^="#"]')];
+  const byId = new Map(links.map(a => [a.getAttribute("href").slice(1), a]));
+  const groupHeads = { payin: "payment-create", payout: "payout-create", wallet: "wallet-balance", tools: "tools-methods" };
+  const docTop = el => el.getBoundingClientRect().top + window.scrollY;
+  const targets = [...byId.keys(), ...Object.keys(groupHeads)]
+    .map(id => document.getElementById(id)).filter(Boolean)
+    .sort((a, b) => docTop(a) - docTop(b));
+  let current = null;
+
+  function groupOf(link) { return link ? link.closest(".navgroup") : null; }
+
+  function apply(id) {
+    if (id === current) return;
+    current = id;
+    links.forEach(a => a.classList.remove("active"));
+    document.querySelectorAll(".group-toggle").forEach(b => b.classList.remove("active-group"));
+    const link = byId.get(id) || byId.get(groupHeads[id]);
+    if (byId.has(id) && link) link.classList.add("active");
+    const group = groupOf(link);
+    if (group) group.querySelector(".group-toggle").classList.add("active-group");
+    // No pelear con el buscador: mientras hay búsqueda activa, no tocar los grupos.
+    if ($("#nav-search").value.trim() !== "") return;
+    document.querySelectorAll("#nav .navgroup").forEach(g => {
+      const open = g === group;
+      g.classList.toggle("collapsed", !open);
+      g.querySelector(".group-toggle").setAttribute("aria-expanded", String(open));
+    });
+    const a = byId.get(id);
+    if (a) a.scrollIntoView({ block: "nearest" });
+  }
+
+  let ticking = false;
+  function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      ticking = false;
+      const y = window.scrollY + 140;
+      let active = targets[0];
+      for (const t of targets) {
+        if (docTop(t) <= y) active = t; else break;
+      }
+      // Al llegar al fondo, la última sección gana aunque no alcance el tope del viewport.
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
+        active = targets[targets.length - 1];
+      }
+      if (active) apply(active.id);
+    });
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+})();
+$("#auth-samples").innerHTML = tabsHtml("auth");
+$("#quickstart-samples").innerHTML = tabsHtml("quickstart");
+$("#webhook-verify-samples").innerHTML = tabsHtml("webhook-verify");
+renderAllSamples();
+
+// los <pre> scrollean horizontalmente: deben ser enfocables por teclado (a11y)
+document.querySelectorAll("pre, table").forEach(el => el.setAttribute("tabindex", "0"));
+
+// URLs clickeables en los ejemplos estáticos (los samples de código con id se re-renderizan aparte)
+document.querySelectorAll("#content pre > code:not([id])").forEach(el => {
+  if (/https?:\/\//.test(el.textContent)) el.innerHTML = linkify(el.textContent);
+});
+
+/* tab switching + copy */
+document.addEventListener("click", e => {
+  const tab = e.target.closest(".tabs button");
+  if (tab) {
+    const tabs = tab.parentElement;
+    tabs.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+    tab.classList.add("active");
+    renderAllSamples();
+    return;
+  }
+  const copy = e.target.closest(".copy-btn");
+  if (copy) {
+    const code = copy.parentElement.querySelector("code");
+    navigator.clipboard.writeText(code.textContent).then(() => {
+      copy.textContent = "Copied ✓";
+      setTimeout(() => { copy.textContent = "Copy"; }, 1200);
+    });
+  }
+});
+
+/* ----------------------------------------------------------- run panel */
+document.addEventListener("click", async e => {
+  const btn = e.target.closest(".run-btn");
+  if (!btn) return;
+  const wrap = btn.closest(".tryit");
+  if (!wrap) return; // botones con estilo .run-btn fuera de un panel try-it (p.ej. "Load")
+  const ep = ENDPOINTS.find(x => x.id === wrap.dataset.ep);
+  const result = $(".result", wrap);
+  const statusEl = $(".status", result);
+  const headersEl = $(".rheaders", result);
+  const bodyEl = $("pre code", result);
+
+  // No se dispara con campos inválidos: el borde rojo señala cuál corregir.
+  const bad = [...wrap.querySelectorAll("input, select")].filter(i => !i.checkValidity());
+  if (bad.length) {
+    result.style.display = "block";
+    headersEl.textContent = "";
+    bodyEl.textContent = "";
+    statusEl.textContent = "✗ Invalid field: " + bad.map(i => i.dataset.ppar || i.dataset.qpar || i.name || "?").join(", ") + " — fix the highlighted value.";
+    statusEl.className = "status err";
+    bad[0].focus();
+    return;
+  }
+
+  const pub = $("#c-pub").value.trim();
+  result.style.display = "block";
+  headersEl.textContent = "";
+  bodyEl.textContent = "";
+
+  if (!pub || !privKey) {
+    statusEl.className = "status err";
+    statusEl.textContent = "Enter your public token and load your private key in the API console section first.";
+    return;
+  }
+  if (!$("#c-pub").checkValidity()) {
+    statusEl.className = "status err";
+    statusEl.textContent = "The public token does not look valid (prkey-…, 40 characters) — check it in the API console section.";
+    return;
+  }
+  if (baseUrl() === "https://api.granve.com" && !$("#c-prod-ok").checked) {
+    statusEl.className = "status err";
+    statusEl.textContent = "Runs against Production are disabled by default. Tick “Allow runs against Production” in the API console to enable them.";
+    return;
+  }
+  if (!window.crypto || !window.crypto.subtle) {
+    statusEl.className = "status err";
+    statusEl.textContent = "Signatures unavailable: open this page over https (or localhost).";
+    return;
+  }
+
+  // Build URL from the try-it inputs.
+  let path = ep.path;
+  wrap.querySelectorAll("[data-ppar]").forEach(i => {
+    path = path.replace("{" + i.dataset.ppar + "}", encodeURIComponent(i.value.trim()));
+  });
+  let url = baseUrl() + path;
+  const q = [...wrap.querySelectorAll("[data-qpar]")]
+    .filter(i => i.value.trim() !== "")
+    .map(i => i.dataset.qpar + "=" + encodeURIComponent(i.value.trim()));
+  if (q.length) url += "?" + q.join("&");
+
+  let body = null;
+  const editor = $(".body-editor", wrap);
+  if (editor) {
+    try {
+      body = JSON.stringify(JSON.parse(editor.value));
+    } catch (err) {
+      statusEl.className = "status err";
+      statusEl.textContent = "Request body is not valid JSON: " + err.message;
+      return;
+    }
+  }
+
+  btn.disabled = true;
+  statusEl.className = "status";
+  statusEl.textContent = "Running…";
+  const t0 = performance.now();
+  try {
+    const date = cleanIsoNow();
+    const sign = await signWithPrivateKey(date);
+    const headers = { "Authorization": "Bearer " + pub, "X-Date": date, "X-Sign": sign };
+    if (body) headers["Content-Type"] = "application/json";
+    const res = await fetch(url, { method: ep.method, headers, body, mode: "cors" });
+    const ms = Math.round(performance.now() - t0);
+    statusEl.className = "status " + (res.ok ? "ok" : "err");
+    statusEl.textContent = `${res.status} ${res.statusText || ""} · ${ms} ms · ${ep.method} ${url}`;
+    const interesting = ["x-next-cursor", "x-total", "content-type"]
+      .map(h => res.headers.get(h) ? `${h}: ${res.headers.get(h)}` : null)
+      .filter(Boolean);
+    headersEl.textContent = interesting.join("   ");
+    const text = await res.text();
+    try { bodyEl.innerHTML = linkify(JSON.stringify(JSON.parse(text), null, 2)); }
+    catch { bodyEl.textContent = text || "(empty body)"; }
+  } catch (err) {
+    statusEl.className = "status err";
+    statusEl.textContent = "Network error: " + err.message;
+    bodyEl.textContent = "The request never reached the API or the response was blocked.\n\n" +
+      "Most common cause: this page's origin is not allowed by the API's CORS configuration\n" +
+      "(CORS_ALLOWED_ORIGINS). Also check the base URL and your network connection.";
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

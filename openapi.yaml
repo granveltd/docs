@@ -1,0 +1,1302 @@
+openapi: 3.0.3
+servers:
+  - url: "https://api.granve.com"
+    description: Production
+  - url: "https://api-sandbox.granve.com"
+    description: Sandbox
+info:
+  title: Granve API
+  version: "1.0.0"
+  contact:
+    email: hola@granve.com
+  description: |
+    ## Introduction
+
+    Welcome to the Granve API. It lets you create payment orders, redirect your customer to a
+    hosted payment page, and query the state of every transaction of your account.
+
+    The API is designed around REST principles: predictable URLs, JSON request and response
+    bodies, and standard HTTP status codes. All responses are JSON, including errors.
+
+    Conventions: lists return 200 with an empty array when nothing matches (404 is
+    reserved for missing individual resources) and default to today only when no dates
+    are sent. Monetary amounts in responses are strings with two decimals ("100.00") —
+    parse with a decimal type, never float. Response timestamps use `YYYY-MM-DD HH:MM:SS`
+    in America/Caracas time (UTC−4, no DST); the `X-Date` request header, in contrast, must
+    be UTC.
+
+    Rate limit: 1200 requests/minute per IP. Every response carries `X-RateLimit-Limit` and
+    `X-RateLimit-Remaining`; exceeding the limit returns `429` with a `Retry-After` header.
+
+    ## Quickstart
+
+    Every integration follows the same path — build against **Sandbox**, then switch the base
+    URL to go live (your credentials are the same in both environments):
+
+    1. **Get your credentials** — a public token (`Authorization` header) and a private token
+       (signing key). ⚠ **The private token is a server-side secret** — anyone who reads it can
+       sign requests as you:
+       - ✗ never anywhere the browser can get it — page source, JavaScript bundles, a config
+         endpoint, cookies or storage — nor sent from it by *any* mechanism (`fetch()`, XHR,
+         WebSockets, form posts or whatever comes next);
+       - ✗ never inside a mobile or desktop app (extracting it from the binary takes minutes);
+       - ✓ always **your backend → Granve API**: the customer's browser talks to your server,
+         and your server makes the signed call.
+
+       Exposing the token in public code is a security vulnerability on your side and your
+       responsibility as an integrator. Suspect a leak? Request an immediate rotation of
+       your keys.
+    2. **Point to Sandbox** — `https://api-sandbox.granve.com`. Nothing there touches real money.
+    3. **Sign a request** — send `Authorization`, `X-Date` and `X-Sign` (see Authentication).
+    4. **Create a payment order** — `POST /v1.0/payment`; the response contains the `id`
+       (your permanent handle, `pi_…`) and the `redirect_url`.
+    5. **Redirect your customer** to `redirect_url` — the hosted page collects and validates the
+       payment. In sandbox, a reference ending in `00` simulates a successful payment.
+    6. **Confirm the result** — Granve calls your registered webhook and sends the customer back
+       to your return URL. Always confirm by querying the API, never by the redirect alone.
+    7. **Go live** — switch the base URL to `https://api.granve.com`. Register your production
+       webhook/return URLs (they are per-environment) and check `"livemode": true` in responses.
+
+    ## Environments
+
+    | Environment  | Base URL                          |
+    |--------------|-----------------------------------|
+    | Production   | https://api.granve.com            |
+    | Sandbox      | https://api-sandbox.granve.com    |
+
+    ⚠ The base URL is the only thing that separates test from real money. Your credentials are
+    identical on both environments — there is no test-only key. A request to `https://api.granve.com`
+    creates a real transaction that moves real money, even from test code. Keep the host in a single
+    config constant, and assert `livemode` on every response: `false` = Sandbox (safe), `true` =
+    Production (real).
+
+    ## Authentication
+
+    Every request must include three headers:
+
+    - `Authorization`: `Bearer your_public_token`
+    - `X-Date`: current UTC timestamp, ISO-8601 with explicit `Z` suffix
+      (`YYYY-MM-DDTHH:MM:SSZ`), within ±5 minutes of server time.
+    - `X-Sign`: hex HMAC-SHA256 of the `X-Date` value, keyed with your private token.
+
+    Example (PHP):
+
+    ```php
+    $date = gmdate("Y-m-d\TH:i:s\Z");
+    $sign = hash_hmac('sha256', $date, $your_private_token);
+    ```
+
+    An invalid or expired `X-Date` returns `401` with `error.code = "date_invalid"`.
+
+    ## Testing
+
+    The sandbox at `https://api-sandbox.granve.com` is a fully isolated environment:
+    your same credentials work on both environments — only the base URL changes.
+    Nothing in sandbox touches real money. On the sandbox payment page, the outcome
+    is decided by the LAST TWO DIGITS of the reference you type: `00` = payment
+    confirmed (order completed), `99` = bank cannot find it, `50` = amount mismatch
+    (rejected), anything else = bank unavailable (attempt fails; order stays pending, retry allowed).
+
+    Payouts are simulated too: the sandbox wallet is automatically topped up with test
+    balance, and the bank result is decided by the last two digits of the amount —
+    `99` = declined (wallet refunded, webhook fires), `50` = stays in created (test
+    polling), anything else = completed in ~10 seconds (webhook fires).
+
+    ## Errors
+
+    Every error — validation, auth, not-found, server — uses the same envelope:
+    `{"status": "failed", "error": {"code": "...", "message": "...", "request_id": "..."}}`.
+    `code` is always present: `invalid_request` (400/409), `date_invalid` (401),
+    `auth_failed` (401), `not_found` (404) or `api_error` (500). `message` is always a
+    string. `fields` (per-field detail) appears only on validation (400/409). `request_id`
+    is always present — quote it in support requests. The `date_invalid` case adds a `hint`
+    and an `example` timestamp.
+
+    ## Webhooks & return URL
+
+    **One action, every object.** When an object reaches its final state, Granve sends a
+    `POST` to the webhook URL registered for your account — same payload, acknowledgment
+    and retry policy for every object type; only the trigger depends on the object:
+    a **payment order** (`pi_…`) notifies on reaching a terminal state — `completed`,
+    `attempts_exhausted`, `expired`, `canceled_user`, and `declined` when a host2host
+    verification fails for good; a **payout** (`po_…`) notifies when it is processed
+    (`completed`, `declined`). Two more can reach a payment order without it being over:
+    `under_review`, when a charge was sent to the bank and its outcome could not be
+    established — a person resolves it, and the eventual `completed` or `declined` still
+    arrives — and `created`, the host2host notice described below. The full list is the `status` enum of
+    `PaymentWebhook`.
+
+    The payload is `id`, `status` and `order` (query string + JSON body) plus `livemode`
+    (body only). Every delivery is signed over its body: headers `X-Date` (UTC ISO-8601 Z)
+    and `X-Sign` = HMAC_SHA256(X-Date + "." + raw_body, your_private_token). Signing the
+    body (not just the timestamp) means a captured signature cannot be reused with a
+    different payload — recompute over the received X-Date and the exact raw body,
+    constant-time compare, reject if older than 5 minutes. Delivery rules (identical for all): one delivery per `id`+`status`;
+    acknowledge with HTTP `200` exactly; failed deliveries retried 3 times, 5 s apart,
+    then an automatic recovery job re-queues undelivered notifications every 10 minutes
+    (payments 7 days, payouts 30). Manual re-notification (payments):
+    `GET /v1.0/payment/notify/{id}/valid/{valid}?expires={unix}` with `{valid}` =
+    HMAC_SHA256(id + "." + expires, your_private_token). `expires` is a Unix timestamp
+    at most **15 minutes** in the future; the request is rejected once it passes, so the
+    URL is short-lived rather than a bearer credential that keeps working for as long as
+    the order is reachable. Build it right before you use it, not ahead of time.
+    The older form without `expires` — `{valid}` = HMAC_SHA256(id, your_private_token) —
+    is **deprecated** and still accepted for now. It never expired, and because the
+    signature travels in the path it ends up in every access log the URL passes through.
+    Migrate: add `expires` and include it in the HMAC input. The authenticated GET
+    remains the source of truth.
+
+    ### Verification failed (host2host only)
+
+    A payment created with an attached `payer` proof is verified against the bank
+    server-to-server, with no payer at a screen. When that verification does **not**
+    succeed and the order is still payable, Granve sends an extra notification so you are
+    not left waiting for a terminal state that may be hours away:
+
+    ```json
+    {
+      "id": "pi_…", "status": "created", "order": "ORD-1", "livemode": true,
+      "reason": "payment_not_found",
+      "retryable": true,
+      "attempts_left": 2
+    }
+    ```
+
+    **`status` is the order's real status, not a failure label** — the order is still open
+    and `GET /v1.0/payment/{id}` will report exactly the same value. The presence of
+    `reason` is what marks the delivery as a failure notice; the fields are additive and
+    every other delivery is unchanged.
+
+    **Only accounts with host2host enabled ever receive it.** If your integration treats
+    any webhook as final, check for `reason` before acting: an order reported as `created`
+    has not failed — it still has `attempts_left` attempts through the checkout
+    `redirect_url`.
+
+    **In the webhook body, `reason` is a stable code**, one of: `payment_not_found` (the
+    bank does not show the transfer — it may simply not be reflected yet),
+    `bank_unavailable`, `amount_mismatch`, `reference_mismatch`, `reference_in_use`,
+    `identity_mismatch`, `bank_not_supported`, `invalid_proof`, `order_not_payable`,
+    `service_unavailable`, `busy`, `internal_error`, `verification_error`. Switch on it;
+    it does not change wording.
+
+    Do not confuse it with **`payment.reason`** inside the `GET /v1.0/payment/{id}`
+    response, which is a human-readable sentence meant for display. Same word, two
+    surfaces: the webhook carries the code you automate on, the payment object carries the
+    message you show someone.
+
+    **`retryable` tells you whether the same data can still succeed**, and it decides what
+    happens to the order:
+
+    - **`retryable: true`** — transient, most often `payment_not_found`: a transfer the bank
+      has not reflected yet. The order **stays open** with `attempts_left` attempts. Treat it
+      as "not yet", not as "no". In production this resolves in under 5 minutes in every
+      measured case (median ~1 min), so a short hold is usually all it takes; send the payer
+      to `redirect_url` to complete it.
+    - **`retryable: false`** — the data itself is the problem and will never verify. The order
+      is **closed immediately as `declined`**, carrying the same `reason` field, so you can
+      release stock or seats in the same second instead of waiting for the 6-hour expiry.
+      That is an ordinary terminal `declined` delivery with one extra field explaining the
+      cause — if you already handle `declined`, there is nothing new to implement.
+
+    Closing an unpaid order does **not** consume the payer's transfer: a bank reference is only
+    locked once it has paid a *completed* order. If your customer did transfer and the order was
+    declined on a data mismatch, the same payment can be attached to a new order.
+
+    Delivery follows the same rules, keyed by `id`+`status`+`event`, so this notification
+    never displaces the terminal one that follows.
+
+    The payer's browser is also redirected to your registered return URL with the same
+    three parameters. UX signal only.
+
+tags:
+  - name: Payment (PayIn)
+    description: Create payment orders and query their state.
+  - name: Payment (PayOut)
+    description: Send money from your wallet to a beneficiary (Pago Móvil or transfer).
+  - name: Wallet
+    description: Balance and ledger movements of your Granve wallet.
+  - name: Tools
+    description: Utility endpoints that support your integration.
+paths:
+  /v1.0/payment:
+    post:
+      tags: [Payment (PayIn)]
+      summary: Create
+      description: |
+        Creates a payment order and returns the payment order object, including the
+        `redirect_url` where the customer must be sent to pay. Store the returned `id`:
+        it identifies the order in every later query.
+
+        When the order reaches a terminal state, the result is delivered once to the `notify_url`
+        you set on this call, and the payer is redirected to your `return_url` with
+        `?id=…&status=…&order=…` appended. Both URLs are required — set a different pair per order
+        when one account serves several storefronts with separate backends.
+
+        Idempotency on timeout: your `order` is the idempotency key. If this request times out
+        with no response, retry with the same `order`. A `409` means the first request already
+        created it (never a duplicate) — recover it with `GET /v1.0/payment/order/{order}` to
+        read its `id` and `redirect_url`. Never generate a new `order` for a retry: that is how
+        double charges happen.
+
+        An `order` is consumed permanently, even when nothing is charged. A payment that ended
+        `declined`, `expired`, `canceled_user`, `canceled_system` or `attempts_exhausted` charged
+        nothing, but its `order` can never be reused — charging that customer again requires a NEW
+        `order`. This is the one case where a new `order` is correct, and it is safe because those
+        are settled outcomes, not unknown ones. The `409` tells you which case you are in: read
+        `error.hint`.
+      parameters:
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payment, amount, email, order, description, return_url, notify_url]
+              properties:
+                payment:
+                  type: string
+                  description: "Id of the payment method to charge with — list the ones enabled for your account with GET /v1.0/payment-methods (Tools)."
+                amount:
+                  type: string
+                  pattern: '^[0-9]+(\.[0-9]{1,2})?$'
+                  description: "Amount to charge. Decimal with up to 2 places; minimum 5 VES."
+                email:
+                  type: string
+                  format: email
+                  description: "Payer's email."
+                order:
+                  type: string
+                  pattern: '^[a-zA-Z0-9-]{1,50}$'
+                  description: "Your unique order identifier — letters, digits and hyphens, up to 50 characters. Reusing an existing value returns 409."
+                description:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  pattern: '^[a-zA-Z0-9 ]{2,100}$'
+                  description: "Description of the product or service — 2-100 characters: letters, digits and spaces. Accents are folded to plain letters (a-acute to a, enye to n); any other character is removed."
+                return_url:
+                  type: string
+                  format: uri
+                  maxLength: 255
+                  description: |
+                    Where the payer's browser is sent back after the hosted payment page, for this order.
+                    Any query string you include is kept — we add `?id=…&status=…&order=…` on top (so
+                    don't use `id`, `status` or `order` as your own parameter names). Must be an absolute
+                    `https` URL with no embedded credentials, up to 255 characters.
+                notify_url:
+                  type: string
+                  format: uri
+                  maxLength: 255
+                  description: |
+                    Where Granve POSTs this order's result when it reaches a terminal state. Same format
+                    rules as `return_url`, and your own query string is kept the same way.
+                payer:
+                  type: object
+                  description: |
+                    The payer object: identity plus, when the customer already paid by mobile payment, the
+                    proof for background bank verification. Every sub-field is optional, but a sub-field
+                    that is present and malformed returns `400` — it is never silently dropped.
+
+                    Two of these are read wrong often enough to call out: `bank` is the bank the payer
+                    paid FROM (not the one on the payment page), and `date` is the receipt date in
+                    Venezuela time (UTC-4), not your server's date.
+
+                    These fields go **inside** `payer` — sending `document` or `phone` at the top
+                    level of the body returns `400`. What you send here is pre-filled and **locked**
+                    on the hosted payment page, so the payer cannot change the identity you declared.
+                  properties:
+                    document: { type: string, pattern: '^[VEJ][0-9]{7,11}$', description: "Payer's document: type letter (V, E, J) + 7-11 digits. Values that match the shape but mean nothing — all-same digits, ascending or descending runs, repeating patterns — are rejected." }
+                    phone: { type: string, pattern: '^(0412|0414|0416|0422|0424|0426)[0-9]{7}$', description: "The phone the payer sent the transfer FROM. Same nonsense checks as document." }
+                    bank: {
+                      type: string,
+                      description: "4-digit code of the payer's **issuing** bank — the bank the transfer was sent FROM, not the bank shown on the payment page. Take it from GET /v1.0/banks."
+                    }
+                    reference: {
+                      type: string,
+                      pattern: '^[0-9]{4,20}$',
+                      description: "The transfer reference from the payer's receipt, 4 to 20 digits. Send it in full: only the LAST 14 are kept, because every bank matches by suffix — trimming from the left does not shorten a reference, it turns it into a different one. It must not equal the phone or the document."
+                    }
+                    date: {
+                      type: string,
+                      format: date,
+                      description: "Date on the payer's receipt, YYYY-MM-DD, **in Venezuela time (UTC-4)**. This is not your server's date: a backend running in UTC is already on the next day after 20:00 in Caracas, and that date is rejected as being in the future. Must not be in the future."
+                    }
+                metadata:
+                  type: object
+                  additionalProperties: true
+                  description: "Free key/value object you attach to the order — stored and echoed back inside merchant.metadata in every response. Up to 50 keys or 2 KB. Purely opaque: no key in here changes how the order is processed."
+            example:
+              payment: "YOURMETHODTOKEN"
+              amount: "100.00"
+              email: "user@example.com"
+              order: "ORDER0001"
+              description: "Lorem ipsum dolor sit"
+              return_url: "https://yourdomain.com/checkout/done?cart_id=6234&ref=abc123"
+              notify_url: "https://yourdomain.com/hooks/granve?source=web"
+              payer:
+                document: "V15427089"
+                phone: "04125837194"
+                # Issuing bank — deliberately different from the receiving bank so the two are not
+                # mistaken for one another.
+                bank: "0105"
+                reference: "12345678"
+                date: "2026-01-01"
+      responses:
+        "200":
+          description: Payment order created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentOrder"
+              examples:
+                default:
+                  $ref: "#/components/examples/PaymentOrderExample"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "409":
+          description: The `order` identifier already exists for your account.
+          content:
+            application/json:
+              example:
+                status: failed
+                error:
+                  code: invalid_request
+                  message: "The request conflicts with an existing resource."
+                  fields:
+                    order: "already exists"
+                  request_id: "req_…"
+        "500":
+          description: Internal server error.
+
+      callbacks:
+        paymentStatus:
+          '{$request.body#/notify_url}':
+            post:
+              summary: Payment status notification
+              description: >-
+                Sent when the order reaches a terminal state, and — for orders created with an
+                attached `payer` proof (host2host) — also when a verification fails while the
+                order is still payable. One delivery per `id`+`status`. Acknowledge with HTTP
+                200 exactly; anything else counts as a failed delivery and is retried.
+              parameters:
+                - name: X-Date
+                  in: header
+                  required: true
+                  description: "UTC ISO-8601 with Z. Reject deliveries older than 5 minutes."
+                  schema: { type: string, format: date-time }
+                - name: X-Sign
+                  in: header
+                  required: true
+                  description: >-
+                    HMAC_SHA256(X-Date + "." + raw_body, your_private_token). Recompute over the
+                    received X-Date and the exact raw body, then compare in constant time.
+                  schema: { type: string }
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/PaymentWebhook'
+                    examples:
+                      completed:
+                        summary: Payment confirmed
+                        value: { id: "pi_…", status: completed, order: "ORD-1", livemode: true }
+                      verificationFailedRetryable:
+                        summary: Host2host verification failed — order still open
+                        value:
+                          id: "pi_…"
+                          status: created
+                          order: "ORD-1"
+                          livemode: true
+                          reason: payment_not_found
+                          retryable: true
+                          attempts_left: 2
+                      verificationFailedFinal:
+                        summary: Host2host verification failed for good — order closed
+                        value:
+                          id: "pi_…"
+                          status: declined
+                          order: "ORD-1"
+                          livemode: true
+                          reason: amount_mismatch
+                          retryable: false
+              responses:
+                "200":
+                  description: Acknowledged.
+
+    get:
+      tags: [Payment (PayIn)]
+      summary: List
+      description: |
+        Returns the payment orders of your account as an array of payment order objects,
+        newest first.
+
+        For large volumes use keyset pagination: read the `X-Next-Cursor` response header
+        and pass it back as `after_id` to fetch the next page.
+      parameters:
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+        - name: start_date
+          in: query
+          description: "Filter start date (YYYY-MM-DD). Defaults to today; must not be in the future."
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          description: "Filter end date (YYYY-MM-DD). Defaults to today; must not be in the future. The range may span at most 92 days."
+          schema: { type: string, format: date }
+        - name: per_page
+          in: query
+          description: "Records per page: 10–5000. Default 5000."
+          schema: { type: integer, minimum: 10, maximum: 5000 }
+        - name: page
+          in: query
+          description: "Page number (offset pagination), starting at 1."
+          schema: { type: integer, minimum: 1 }
+        - name: order
+          in: query
+          description: "Sort direction by id: DESC (default) or ASC. The same filter is named `sort` on GET /v1.0/wallet."
+          schema: { type: string, enum: [ASC, DESC] }
+        - name: after_id
+          in: query
+          description: "Keyset cursor: pass the X-Next-Cursor header from the previous page to fetch records after it."
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Array of payment order objects.
+          headers:
+            X-Next-Cursor:
+              description: "Cursor for the next page — pass it as after_id."
+              schema: { type: string }
+            X-Total:
+              description: "Total records for the filter (sent on the first page)."
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaymentOrder"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "500":
+          description: Internal server error.
+
+  /v1.0/payment/{id}:
+    get:
+      tags: [Payment (PayIn)]
+      summary: Get
+      description: Retrieves one payment order using the `id` returned by Create.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: "The payment order id (pi_…)."
+          schema: { type: string }
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      responses:
+        "200":
+          description: The payment order object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentOrder"
+              examples:
+                default:
+                  $ref: "#/components/examples/PaymentOrderExample"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          description: Internal server error.
+
+  /v1.0/payment/order/{order}:
+    get:
+      tags: [Payment (PayIn)]
+      summary: Get by order
+      description: Retrieves one payment order using your own `order` identifier instead of the Granve id.
+      parameters:
+        - name: order
+          in: path
+          required: true
+          description: "Your order identifier (the one you sent on Create)."
+          schema: { type: string }
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      responses:
+        "200":
+          description: The payment order object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentOrder"
+              examples:
+                default:
+                  $ref: "#/components/examples/PaymentOrderExample"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          description: Internal server error.
+
+  /v1.0/payment/notify/{id}/valid/{valid}:
+    get:
+      tags: [Payment (PayIn)]
+      summary: Re-send webhook (manual)
+      description: |
+        Manually re-sends the `completed` webhook of a payment whose delivery was never
+        acknowledged. Self-authenticated by `{valid}` — it does not use the standard
+        `Authorization`/`X-Date`/`X-Sign` headers. Only re-fires for successful orders from
+        the last 3 months whose webhook is still pending; always answers 200 with an empty
+        array body ([]) and never reveals whether the order exists.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: "The payment order id (pi_...)."
+          schema: { type: string }
+        - name: valid
+          in: path
+          required: true
+          description: "HMAC_SHA256(id, your_private_token), hex."
+          schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+      responses:
+        "200":
+          description: Always returned (empty body), whether or not anything was re-sent.
+
+  /v1.0/payout:
+    post:
+      tags: [Payment (PayOut)]
+      summary: Create
+      description: |
+        Creates a payout to a beneficiary and debits your wallet (amount + fee).
+
+        The destination is defined by `bank.num`: an 11-digit mobile number selects
+        Pago Móvil (`bank.code` required), a 20-digit account number selects bank
+        transfer (`bank.type` required; the bank is taken from the account's first
+        4 digits).
+
+        Idempotency on timeout: your `order` is the idempotency key. If this request times
+        out, retry with the same `order` — a `409` means the first request already ran and
+        your wallet was debited only once. Recover it with `GET /v1.0/payout/order/{order}`.
+        Never generate a new `order` for a retry: that is how double withdrawals happen.
+
+        An `order` is consumed permanently, even when the payout does not pay. If a previous
+        payout ended `declined`, the amount was returned to your wallet and nothing was sent —
+        but its `order` can never be reused, so paying that beneficiary again requires a NEW
+        `order`. This is the one case where a new `order` is correct, and it is safe because
+        `declined` is a settled outcome, not an unknown one. The `409` tells you which case you
+        are in: read `error.hint`.
+      parameters:
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order, description, amount, beneficiary, bank]
+              properties:
+                order:
+                  type: string
+                  pattern: '^[a-zA-Z0-9-]{1,99}$'
+                  description: "Your unique payout identifier. Reusing a value returns 409."
+                description:
+                  type: string
+                  minLength: 5
+                  maxLength: 200
+                  pattern: '^[a-zA-Z0-9 ]{5,200}$'
+                  description: "Concept of the payout — 5-200 characters: letters, digits and spaces. Accents are folded to plain letters; any other character is removed."
+                amount:
+                  type: integer
+                  minimum: 1
+                  description: "Amount in VES, whole numbers only (no decimals)."
+                beneficiary:
+                  type: object
+                  required: [name, document, email, phone]
+                  properties:
+                    name: { type: string, minLength: 3, maxLength: 50 }
+                    document:
+                      type: string
+                      pattern: '^[VEJ][0-9]{7,10}$'
+                      description: "Type letter (V, E, J) + 7–10 digits (e.g. V00000000)."
+                    email: { type: string, format: email, maxLength: 100 }
+                    phone:
+                      type: string
+                      pattern: '^(0412|0414|0416|0422|0424|0426)[0-9]{7}$'
+                      description: "11 digits; prefixes 0412, 0414, 0416, 0422, 0424, 0426."
+                bank:
+                  type: object
+                  required: [num]
+                  properties:
+                    num:
+                      type: string
+                      pattern: '^((0412|0414|0416|0422|0424|0426)[0-9]{7}|[0-9]{20})$'
+                      description: "Destination — 11-digit mobile (Pago Móvil) or 20-digit account (transfer). Polymorphic: length selects the method."
+                    code:
+                      type: string
+                      description: "Required for Pago Móvil (11-digit num) — any code from GET /v1.0/banks. Ignored for transfers (derived from the account number)."
+                    type:
+                      type: string
+                      enum: [A, C]
+                      description: "Required for transfers (20-digit num): A (savings) or C (checking). Not used for Pago Móvil."
+                metadata:
+                  type: object
+                  additionalProperties: true
+                  description: "Free key/value object you attach to the payout — stored and echoed back inside merchant.metadata in every response. Up to 50 keys or 2 KB."
+            example:
+              order: "PO-0001"
+              description: "Lorem ipsum payout"
+              amount: 100
+              beneficiary:
+                name: "Lorem Ipsum"
+                document: "V00000000"
+                email: "user@example.com"
+                phone: "04120000000"
+              bank:
+                num: "04120000000"
+                code: "0102"
+              metadata:
+                customer_id: "cus_00123"
+                invoice: "INV-2026-014"
+      responses:
+        "200":
+          description: Payout created (`status = created`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payout"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "409":
+          description: The `order` identifier already exists for your account.
+        "500":
+          description: Internal server error.
+
+    get:
+      tags: [Payment (PayOut)]
+      summary: List
+      description: |
+        Returns the payouts of your account, newest first. **Without dates the range
+        defaults to today only** (empty result = 200 []). Keyset
+        pagination via `after_id` + `X-Next-Cursor`, like PayIn List.
+      parameters:
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+        - name: start_date
+          in: query
+          description: "Filter start date (YYYY-MM-DD). Defaults to today; must not be in the future."
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          description: "Filter end date (YYYY-MM-DD). Defaults to today; must not be in the future. The range may span at most 92 days."
+          schema: { type: string, format: date }
+        - name: per_page
+          in: query
+          description: "Records per page: 10-5000. Default 5000."
+          schema: { type: integer, minimum: 10, maximum: 5000 }
+        - name: page
+          in: query
+          description: "Page number (offset pagination), starting at 1."
+          schema: { type: integer, minimum: 1 }
+        - name: order
+          in: query
+          description: "Sort direction by id: DESC (default) or ASC. The same filter is named `sort` on GET /v1.0/wallet."
+          schema: { type: string, enum: [ASC, DESC] }
+        - name: after_id
+          in: query
+          description: "Keyset cursor: pass the X-Next-Cursor header from the previous page to fetch records after it."
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Array of payout objects.
+          headers:
+            X-Next-Cursor:
+              schema: { type: string }
+            X-Total:
+              description: "First page only."
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Payout"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1.0/payout/{id}:
+    get:
+      tags: [Payment (PayOut)]
+      summary: Get
+      description: Retrieves one payout by the `id` returned on Create. Lookups cover the last 180 days.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      responses:
+        "200":
+          description: The payout object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payout"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1.0/payout/order/{order}:
+    get:
+      tags: [Payment (PayOut)]
+      summary: Get by order
+      description: Retrieves the payout for your own `order` identifier. Each `order` is unique to one payout and cannot be reused. Lookups cover the last 180 days.
+      parameters:
+        - name: order
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      responses:
+        "200":
+          description: The payout object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payout"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1.0/wallet/balance:
+    get:
+      tags: [Wallet]
+      summary: Balance
+      description: Returns your current wallet balance (VES).
+      parameters:
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      responses:
+        "200":
+          description: Current balance.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available: { type: string, description: "Disbursable now." }
+                  pending: { type: string, description: "PayIn collected, not yet settled into the wallet." }
+                  currency: { type: string }
+                  livemode: { type: boolean }
+              example:
+                available: "900.00"
+                pending: "150.00"
+                currency: "VES"
+                livemode: false
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "404":
+          description: No wallet provisioned for the account.
+
+  /v1.0/wallet:
+    get:
+      tags: [Wallet]
+      summary: List
+      description: |
+        Returns the wallet movements of your account. **Without dates the range
+        defaults to today only.**
+      parameters:
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+        - name: start_date
+          in: query
+          description: "Filter start date (YYYY-MM-DD). Defaults to today; must not be in the future."
+          schema: { type: string, format: date }
+        - name: end_date
+          in: query
+          description: "Filter end date (YYYY-MM-DD). Defaults to today."
+          schema: { type: string, format: date }
+        - name: per_page
+          in: query
+          description: "Records per page: 10-5000. Default 5000."
+          schema: { type: integer, minimum: 10, maximum: 5000 }
+        - name: page
+          in: query
+          description: "Page number (offset pagination), starting at 1."
+          schema: { type: integer, minimum: 1 }
+        - name: sort
+          in: query
+          description: "Sort by movement id: ASC or DESC (default)."
+          schema: { type: string, enum: [ASC, DESC] }
+      responses:
+        "200":
+          description: Array of movement objects.
+          headers:
+            X-Page:
+              schema: { type: integer }
+            X-Per-Page:
+              schema: { type: integer }
+            X-Total:
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WalletMovement"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1.0/wallet/{id}:
+    get:
+      tags: [Wallet]
+      summary: Get
+      description: Retrieves one wallet movement by its `id`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      responses:
+        "200":
+          description: The movement object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletMovement"
+        "401":
+          $ref: "#/components/responses/AuthError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1.0/payment-methods:
+    get:
+      tags: [Tools]
+      summary: List your payment methods
+      description: |
+        Returns the payment methods enabled for your account. Every `id` in this list is a
+        valid value for the `payment` field of Create a payment order — and vice versa. The
+        catalog rarely changes; cache it and refresh on demand. An empty array means no
+        methods are enabled for the account yet.
+      parameters:
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      responses:
+        "200":
+          description: One object per enabled method.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      description: "Value to send as `payment` on Create."
+                    name: { type: string }
+                    description: { type: string }
+                    type:
+                      type: string
+                      enum: [mobile_payment, bank_transfer, card]
+                    currency: { type: string }
+                    host2host:
+                      type: boolean
+                      description: >-
+                        Whether **your account** can attach the payment proof on this method and
+                        skip the hosted page — that is, whether sending a complete `payer` object
+                        on Create makes Granve verify it with the bank (`202`) instead of only
+                        returning a `redirect_url` (`200`). Two switches decide it: the method must
+                        be offered with host2host, and your account must be enabled for it, so
+                        `false` means either one. Write to hola@granve.com to have it enabled.
+              example:
+                - id: "LOREMIPSUMP2C"
+                  name: "Lorem Ipsum"
+                  description: "Lorem ipsum dolor sit amet"
+                  type: "mobile_payment"
+                  currency: "VES"
+                  host2host: true
+        "401":
+          $ref: "#/components/responses/AuthError"
+
+  /v1.0/banks:
+    get:
+      tags: [Tools]
+      summary: List accepted banks
+      description: |
+        Returns the bank catalog accepted by the API. Every `code` is a valid value for
+        `bank.code` on Create a payout and for `payer.bank` on Create a payment
+        order — and vice versa. The catalog rarely changes; cache it.
+      parameters:
+        - $ref: "#/components/parameters/HeaderAuthorization"
+        - $ref: "#/components/parameters/HeaderDate"
+        - $ref: "#/components/parameters/HeaderSign"
+      responses:
+        "200":
+          description: One object per accepted bank, ordered by code.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    code: { type: string }
+                    name: { type: string }
+              example:
+                - code: "0102"
+                  name: "BANCO DE VENEZUELA"
+                - code: "0104"
+                  name: "BANCO VENEZOLANO DE CREDITO"
+        "401":
+          $ref: "#/components/responses/AuthError"
+
+components:
+  parameters:
+    HeaderAuthorization:
+      name: Authorization
+      in: header
+      required: true
+      description: "Bearer + your public token."
+      schema: { type: string }
+    HeaderDate:
+      name: X-Date
+      in: header
+      required: true
+      description: "UTC timestamp, ISO-8601 with Z (YYYY-MM-DDTHH:MM:SSZ), ±5 minutes."
+      schema: { type: string }
+    HeaderSign:
+      name: X-Sign
+      in: header
+      required: true
+      description: "Hex HMAC-SHA256 of the X-Date value, keyed with your private token."
+      schema: { type: string }
+
+  responses:
+    ValidationError:
+      description: Validation failed. `error.fields` details each invalid field.
+      content:
+        application/json:
+          example:
+            status: failed
+            error:
+              code: invalid_request
+              message: "Validation failed."
+              fields:
+                amount: "must be at least 5 VES"
+              request_id: "req_…"
+    AuthError:
+      description: Authentication failed (token, X-Date or X-Sign invalid).
+      content:
+        application/json:
+          example:
+            status: failed
+            error:
+              code: auth_failed
+              message: "Invalid authentication credentials."
+              request_id: "req_…"
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          example:
+            status: failed
+            error:
+              code: not_found
+              message: "Resource not found."
+              request_id: "req_…"
+
+  schemas:
+    Payout:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "Public identifier of the payout (po_…)."
+        livemode:
+          type: boolean
+          description: "false in Sandbox, true in Production."
+        status:
+          type: string
+          enum: [created, processing, completed, declined, settlement_pending, settled]
+        created_at:
+          type: string
+        merchant:
+          type: object
+          properties:
+            order: { type: string }
+            description: { type: string }
+            amount: { type: string }
+            metadata:
+              type: object
+              additionalProperties: true
+        beneficiary:
+          type: object
+          properties:
+            name: { type: string }
+            document: { type: string }
+            email: { type: string }
+            phone: { type: string }
+        bank:
+          type: object
+          properties:
+            code: { type: string }
+            type: { type: string, nullable: true, description: "Account type for transfers: `A` = savings, `C` = checking. null for Pago Móvil." }
+            num: { type: string }
+            method:
+              type: string
+              enum: [mobile, transfer]
+              description: "Delivery method."
+        wallet:
+          type: object
+          description: "The two wallet movements generated by the payout: `payout` is the amount and `fee` is the commission. System-generated `description` values (e.g. Cargo payout…) are returned in Spanish."
+          properties:
+            payout:
+              $ref: "#/components/schemas/WalletMovement"
+            fee:
+              $ref: "#/components/schemas/WalletMovement"
+
+    WalletMovement:
+      type: object
+      properties:
+        id: { type: string }
+        livemode:
+          type: boolean
+          description: "false in Sandbox, true in Production. Only on the standalone movements of GET /v1.0/wallet and GET /v1.0/wallet/{id}: absent from the movements nested in a payout, where the parent object already carries it."
+        created_at: { type: string }
+        type:
+          type: string
+          enum: [credit, debit]
+          description: "`credit` increases your balance, `debit` decreases it."
+        description: { type: string }
+        amount: { type: string, description: "Decimal string (e.g. \"100.00\"). Never a JSON number — avoids float rounding." }
+        balance:
+          type: string
+          description: "Wallet balance right after this movement, as a decimal string (e.g. \"900.00\"). Only on the standalone movements of GET /v1.0/wallet and GET /v1.0/wallet/{id}: absent from the movements nested in a payout."
+        currency: { type: string }
+        deposit:
+          type: object
+          description: "Only on a payout's principal movement (`wallet.payout`): confirms when and how much was deposited to the beneficiary. Absent on other movements."
+          properties:
+            settled_at: { type: string, nullable: true, description: "Deposit date (YYYY-MM-DD); null until deposited." }
+            amount: { type: string, description: "Deposited amount as a decimal string (\"0.00\" until deposited)." }
+
+    PaymentFailureReason:
+      type: string
+      description: >-
+        Stable machine code explaining why a verification did not succeed. Switch on this
+        value; the wording of human-facing messages may change, these codes do not.
+        Distinct from `payment.reason` in the payment object, which is a sentence meant for
+        display. New codes may be added over time — use `retryable` to handle a code you do
+        not recognise yet.
+      enum:
+        - payment_not_found
+        - bank_unavailable
+        - amount_mismatch
+        - reference_mismatch
+        - reference_in_use
+        - identity_mismatch
+        - bank_not_supported
+        - invalid_proof
+        - order_not_payable
+        - service_unavailable
+        - busy
+        - internal_error
+        - verification_error
+
+    PaymentWebhook:
+      type: object
+      description: >-
+        Body delivered to your `notify_url`. The same three values are also appended to the
+        URL as a query string; the body is what the `X-Sign` signature covers.
+      required: [id, status, order, livemode]
+      properties:
+        id:
+          type: string
+          description: "Public identifier of the payment order (pi_…)."
+          example: "pi_9f2c1d4e6a7b8c9d0e1f2a3b4c5d6e7f"
+        status:
+          type: string
+          description: >-
+            The order's status at the moment of delivery, identical to what
+            `GET /v1.0/payment/{id}` reports. `created` means the order is still open and
+            payable — see `reason`.
+          enum: [completed, declined, attempts_exhausted, canceled_user, expired, under_review, created]
+        order:
+          type: string
+          description: "Your own order identifier, as sent on create."
+        livemode:
+          type: boolean
+          description: "false in sandbox. Body only — never in the query string."
+        reason:
+          nullable: true
+          description: >-
+            Present only when a verification failed. Absent or null on ordinary terminal
+            deliveries such as `completed`.
+          allOf:
+            - $ref: '#/components/schemas/PaymentFailureReason'
+        retryable:
+          type: boolean
+          description: >-
+            Present alongside `reason`. `true` means the same payment data may still succeed
+            — typically the bank has not reflected the transfer yet — and the order is left
+            open. `false` means the data will never verify and the order was closed as
+            `declined` in the same delivery. Prefer this flag over hard-coding which
+            `reason` codes are terminal.
+        attempts_left:
+          type: integer
+          minimum: 0
+          description: >-
+            Present when the order is still open. Validation attempts remaining for the payer
+            through `redirect_url`.
+      example:
+        id: "pi_9f2c1d4e6a7b8c9d0e1f2a3b4c5d6e7f"
+        status: created
+        order: "ORD-1"
+        livemode: true
+        reason: payment_not_found
+        retryable: true
+        attempts_left: 2
+
+    PaymentOrder:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "Public identifier of the payment order (pi_…)."
+        livemode:
+          type: boolean
+          description: "false in Sandbox, true in Production."
+        status:
+          type: string
+          description: >-
+            The last five values (voided, refunded, partially_refunded, disputed,
+            chargeback) are post-payment states set by Granve operations (compliance,
+            support or the admin panel), never by the payment flow — treat them as
+            read-only signals that can appear on an already completed order.
+          enum: [created, pending, processing, under_review, retrying, completed,
+                 declined, attempts_exhausted, failed, canceled_user, canceled_system,
+                 expired, voided, refunded, partially_refunded, disputed, chargeback]
+        created_at:
+          type: string
+        redirect_url:
+          type: string
+          description: "Signed URL of the hosted payment page — send your customer here. Opaque: host and path depend on the environment and the payment method; use it verbatim, never build or parse it."
+        merchant:
+          type: object
+          properties:
+            order: { type: string }
+            description: { type: string }
+            amount: { type: string }
+            metadata:
+              type: object
+              additionalProperties: true
+        payer:
+          type: object
+          properties:
+            email: { type: string }
+            document: { type: string, nullable: true }
+            phone: { type: string, nullable: true }
+        payment:
+          type: object
+          properties:
+            started_at: { type: string, nullable: true }
+            ended_at: { type: string, nullable: true }
+            amount: { type: string }
+            fee: { type: string }
+            authorization:
+              type: string
+              nullable: true
+              description: "Bank reference, present when status = completed."
+            reason:
+              type: string
+              nullable: true
+              description: "Human-readable message explaining the current status — typically the decline or failure reason. null when there is nothing to report (e.g. while pending or once completed)."
+            type:
+              type: string
+              nullable: true
+              enum: [bank_transfer, mobile_payment, card]
+            card:
+              type: object
+              properties:
+                last4: { type: string, nullable: true }
+                authorization_code: { type: string, nullable: true }
+                installments: { type: integer, nullable: true }
+                brand: { type: string, nullable: true, description: "Card brand (e.g. Visa, Mastercard) when the payment method is a card." }
+            settlement:
+              type: object
+              description: "When this payment was settled into your wallet. Both fields are null until settlement."
+              properties:
+                id: { type: string, nullable: true, description: "Settlement identifier." }
+                settled_at: { type: string, nullable: true, description: "Settlement date (YYYY-MM-DD)." }
+            currency: { type: string, description: "ISO currency of the payment (VES)." }
+
+  examples:
+    PaymentOrderExample:
+      value:
+        id: "pi_00000000000000000000000000000000"
+        livemode: false
+        status: "pending"
+        created_at: "2026-01-01 00:00:00"
+        redirect_url: "{base_url}/{payment_method}/pi_00000000000000000000000000000000?signature=…"
+        merchant:
+          order: "ORDER0001"
+          description: "Lorem ipsum dolor sit"
+          amount: "100.00"
+        payer:
+          email: "user@example.com"
+          document: "V15427089"
+          phone: "04125837194"
+        payment:
+          started_at: null
+          ended_at: null
+          amount: "0.00"
+          fee: "0.00"
+          authorization: null
+          reason: null
+          type: "mobile_payment"
+          card:
+            last4: null
+            authorization_code: null
+            installments: null
+            brand: null
+          settlement:
+            id: null
+            settled_at: null
+          currency: "VES"
