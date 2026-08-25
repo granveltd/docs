@@ -135,16 +135,9 @@ info:
     acknowledge with HTTP `200` exactly; failed deliveries retried 3 times, 5 s apart,
     then an automatic recovery job re-queues undelivered notifications every 10 minutes
     (payments 7 days, payouts 30). Manual re-notification (payments):
-    `GET /v1.0/payment/notify/{id}/valid/{valid}?expires={unix}` with `{valid}` =
-    HMAC_SHA256(id + "." + expires, your_private_token). `expires` is a Unix timestamp
-    at most **15 minutes** in the future; the request is rejected once it passes, so the
-    URL is short-lived rather than a bearer credential that keeps working for as long as
-    the order is reachable. Build it right before you use it, not ahead of time.
-    The older form without `expires` — `{valid}` = HMAC_SHA256(id, your_private_token) —
-    is **deprecated** and still accepted for now. It never expired, and because the
-    signature travels in the path it ends up in every access log the URL passes through.
-    Migrate: add `expires` and include it in the HMAC input. The authenticated GET
-    remains the source of truth.
+    `GET /v1.0/payment/notify/{id}/valid/{valid}` with `{valid}` =
+    HMAC_SHA256(id, your_private_token). The authenticated GET remains the source of
+    truth.
 
     ### Verification failed (host2host only)
 
@@ -303,10 +296,6 @@ paths:
                     Two of these are read wrong often enough to call out: `bank` is the bank the payer
                     paid FROM (not the one on the payment page), and `date` is the receipt date in
                     Venezuela time (UTC-4), not your server's date.
-
-                    These fields go **inside** `payer` — sending `document` or `phone` at the top
-                    level of the body returns `400`. What you send here is pre-filled and **locked**
-                    on the hosted payment page, so the payer cannot change the identity you declared.
                   properties:
                     document: { type: string, pattern: '^[VEJ][0-9]{7,11}$', description: "Payer's document: type letter (V, E, J) + 7-11 digits. Values that match the shape but mean nothing — all-same digits, ascending or descending runs, repeating patterns — are rejected." }
                     phone: { type: string, pattern: '^(0412|0414|0416|0422|0424|0426)[0-9]{7}$', description: "The phone the payer sent the transfer FROM. Same nonsense checks as document." }
@@ -337,8 +326,8 @@ paths:
               return_url: "https://yourdomain.com/checkout/done?cart_id=6234&ref=abc123"
               notify_url: "https://yourdomain.com/hooks/granve?source=web"
               payer:
-                document: "V15427089"
-                phone: "04125837194"
+                document: "V00000000"
+                phone: "04120000000"
                 # Issuing bank — deliberately different from the receiving bank so the two are not
                 # mistaken for one another.
                 bank: "0105"
@@ -1281,8 +1270,8 @@ components:
           amount: "100.00"
         payer:
           email: "user@example.com"
-          document: "V15427089"
-          phone: "04125837194"
+          document: "V00000000"
+          phone: "04120000000"
         payment:
           started_at: null
           ended_at: null

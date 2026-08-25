@@ -11,11 +11,10 @@ Pensado para publicarse en **GitHub Pages** — no necesita build ni servidor.
 | `openapi.yaml` | Especificación OpenAPI 3.0 (fuente machine-readable del contrato). |
 | `CNAME`        | Dominio personalizado de GitHub Pages (`docs.granve.com`). |
 
-Alcance: **Introduction, Quickstart, Environments, Authentication, Testing/sandbox,
-consola try-it, Payment (PayIn), Payment (PayOut), Wallet, Tools
-(payment-methods, banks), guías (Webhooks & return URL, Errors, Troubleshooting)
-y Changelog** — los endpoints públicos de `/v1.0` con consola try-it y ejemplos
-en 7 lenguajes.
+Alcance: **Introduction, Endpoint, Authentication, guías (Errors, Rate limits,
+Webhooks & return URL, Testing/sandbox), Payment (PayIn), Payment (PayOut),
+Wallet y Changelog** — los 11 endpoints públicos de `/v1.0` con consola try-it
+y ejemplos en 7 lenguajes.
 
 ## Publicar en GitHub Pages
 
