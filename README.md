@@ -34,11 +34,15 @@ backend debe permitir el origen de las docs:
    `*.github.io` que corresponda si se sirve sin dominio propio).
    `config/cors.php` ya permite los headers `Sign`/`X-Date` y expone
    `X-Next-Cursor`/`X-Total`.
-2. **Headers `X-Date` / `X-Sign`** — nombres canónicos de la firma desde
-   jul-2026 (los navegadores no pueden enviar el header `Date`, forbidden en
-   Fetch). `ApiAuthenticate` los lee con prioridad y mantiene `Date`/`Sign`
-   como alias legacy para integraciones existentes. Requiere que esa versión
-   esté deployada.
+2. **Headers `X-Date` / `X-Sign`** — nombres canónicos de la firma (los
+   navegadores no pueden enviar el header `Date`, forbidden en Fetch).
+
+   La consola **firma con el formato vigente**: `X-Sign` = HMAC-SHA256 de
+   `{X-Date}\n{MÉTODO} {ruta}`, con la ruta sin host y **sin query string**
+   (`endpointCtx()` expone `signPath` justo para eso — `path` conserva la query
+   porque es la URL que se llama, `signPath` no porque es lo único que el
+   servidor firma). Si alguna vez se toca `signWithPrivateKey()`, hay que
+   tocar también los 7 ejemplos de lenguajes: son lo que el integrador copia.
 
 ## Regenerar la referencia con Redocly (opcional)
 

@@ -372,10 +372,13 @@ working. Prefer the machine-readable contract? Download the
   <strong>America/Caracas time (UTC−4, no DST)</strong> — Venezuela's timezone, where all
   payments settle. Note this differs from the <code>X-Date</code> request header, which must be
   UTC.</li>
-  <li><strong>Rate limit: 1200 requests/minute</strong> per IP. Every response carries
+  <li><strong>Rate limit: 100 requests/second</strong> per account. Every response carries
   <code>X-RateLimit-Limit</code> and <code>X-RateLimit-Remaining</code>; exceeding the limit
-  returns <code>429</code> with a <code>Retry-After</code> header (seconds to wait). Back off and
-  retry — do not hammer.</li>
+  returns <code>429</code> with a <code>Retry-After</code> header (seconds to wait).
+  A short burst above the limit is <em>slowed down</em> rather than rejected — you will see
+  latency before you see a <code>429</code>, which is your signal to ease off. Respect
+  <code>Retry-After</code>: retrying immediately makes the spike that caused it worse.
+  Need a higher ceiling? Ask us — it is a per-account setting.</li>
   <li id="idempotency"><strong>Idempotency:</strong> your <code>order</code> is the idempotency
   key on both <code>POST</code> endpoints. If a create request times out with no response,
   <strong>retry with the same <code>order</code></strong> — a duplicate returns
@@ -460,9 +463,10 @@ both environments, so the code you write on day one is the code that runs in pro
   <div class="qs-step"><div class="qs-n">2</div><div class="qs-body">
     <h3>Sign a request</h3>
     <p>Every call carries three headers: <code>Authorization</code>, <code>X-Date</code> and
-    <code>X-Sign</code> — an HMAC-SHA256 signature of the timestamp, keyed with your private
-    token (<a href="#authentication">Authentication</a>). The sample on the right computes all
-    three for you in 7 languages, and is runnable as-is against Sandbox.</p>
+    <code>X-Sign</code> — an HMAC-SHA256 signature over the timestamp <em>and the request being
+    made</em>, keyed with your private token (<a href="#authentication">Authentication</a>).
+    The sample on the right computes all three for you in 7 languages, and is runnable as-is
+    against Sandbox.</p>
   </div></div>
 
   <div class="qs-step"><div class="qs-n">3</div><div class="qs-body">
@@ -560,10 +564,38 @@ for your account.</p>
   <tr><td><code>X-Date</code></td><td>Current timestamp in UTC, ISO-8601 with explicit <code>Z</code> suffix.
       It must be within <strong>±5 minutes</strong> of server time.<br>
       Format: <code>^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$</code></td></tr>
-  <tr><td><code>X-Sign</code></td><td>Hex HMAC-SHA256 of the <code>X-Date</code> value, keyed with your private token:
-      <code>HMAC_SHA256(X-Date, your_private_token)</code>.<br>
+  <tr><td><code>X-Sign</code></td><td>Hex HMAC-SHA256 of the <strong>signed string</strong> (below),
+      keyed with your private token.<br>
       Format: <code>^[a-f0-9]{64}$</code></td></tr>
 </table>
+
+<h3>The signed string</h3>
+
+<p>Two lines are hashed — the same rule for every endpoint, now and in the future:</p>
+
+<pre><code>{X-Date}\n{METHOD} {path}</code></pre>
+
+<ul>
+  <li><code>{X-Date}</code> — the exact value you put in the header, character for character.</li>
+  <li><code>{METHOD}</code> — uppercase HTTP verb: <code>GET</code>, <code>POST</code>.</li>
+  <li><code>{path}</code> — the path <strong>without the host and without the query string</strong>
+      (<code>/v1.0/payout</code>, not <code>https://api.granve.com/v1.0/payout?page=2</code>).</li>
+</ul>
+
+<p>Separated by a single newline (<code>\n</code>), with one space between the method and the path.
+There is nothing else to compute: no request body, no query string, no per-endpoint special case.
+An endpoint that takes no body is signed exactly like one that does.</p>
+
+<table>
+  <tr><th>Request</th><th>Signed string</th></tr>
+  <tr><td><code>POST /v1.0/payment</code></td><td><code>2026-09-05T18:24:42Z\nPOST /v1.0/payment</code></td></tr>
+  <tr><td><code>POST /v1.0/payout</code></td><td><code>2026-09-05T18:24:42Z\nPOST /v1.0/payout</code></td></tr>
+  <tr><td><code>GET /v1.0/banks</code></td><td><code>2026-09-05T18:24:42Z\nGET /v1.0/banks</code></td></tr>
+  <tr><td><code>GET /v1.0/payment?page=2</code></td><td><code>2026-09-05T18:24:42Z\nGET /v1.0/payment</code></td></tr>
+</table>
+
+<p>Because the signature covers the method and the path, a signature is only valid for the exact
+call it was built for: it cannot be replayed against a different endpoint.</p>
 
 <p>If the <code>X-Date</code> header is missing, malformed, not UTC or outside the ±5-minute window,
 the API answers <code>401</code> with <code>error.code = "date_invalid"</code> — the exact body is
@@ -759,6 +791,17 @@ retry.</div>
 by <strong>Pago Móvil</strong> (11-digit mobile number) or <strong>bank transfer</strong>
 (20-digit account number). The amount plus the payout fee is debited from your wallet when the
 payout is accepted.</p>
+
+<div class="note" id="payout-ip-allowlist"><strong>IP allowlist.</strong> Because this endpoint
+moves money <em>out</em> of your wallet, you can restrict it to the IP addresses your servers
+call from. Send us the public IPs (or CIDR ranges) of your backend and we register them on your
+account; a <code>POST /v1.0/payout</code> from anywhere else is then rejected with
+<code>403</code> and <code>error.code = "ip_not_allowed"</code>. Nothing changes in your code —
+it is a setting on our side. Currency is <strong>VES</strong> only; any other value returns
+<code>400</code>.<br>
+Strongly recommended: it is the one control that still protects you if your credentials ever
+leak, because a stolen signature is useless from an address that is not yours. Tell us before
+you change hosting or add a server, or your payouts will start failing.</div>
 
 <div class="split">
 <div class="doc">
@@ -1002,10 +1045,7 @@ past the recovery window), you can request it yourself:</p>
 <p><code>expires</code> is a Unix timestamp at most <strong>15 minutes</strong> in the future.
 Past it the request is rejected, so the URL stops working instead of staying valid for as long as
 the order is reachable. Build it right before you use it.</p>
-<p class="note"><strong>Deprecated:</strong> the older form without <code>expires</code>
-(<code>{valid} = HMAC_SHA256({id}, your_private_token)</code>) is still accepted, but it never
-expired — and since the signature travels in the path, it ends up in every access log the URL
-passes through. Add <code>expires</code> and include it in the HMAC input.</p>
+
 <p>It only re-fires for successful orders from the last 3 months whose webhook was never
 acknowledged, and always answers <code>200</code> with an empty array body (<code>[]</code>) —
 it never confirms whether the order exists.</p>
@@ -1104,6 +1144,23 @@ when you have one; it lets them trace the exact call.</p>
 <h2 id="changelog">Changelog</h2>
 <table>
   <tr><th>Version</th><th>Date</th><th>Changes</th></tr>
+  <tr><td><code>1.1.0</code></td><td>2026-09</td><td>
+  <strong>Request signature now covers the method and the path.</strong>
+  <code>X-Sign</code> is the HMAC of <code>{X-Date}\n{METHOD} {path}</code> instead of the
+  timestamp alone, so a signature is only valid for the call it was built for
+  (<a href="#authentication">Authentication</a>).<br>
+  <strong>Rate limit</strong> is now <strong>100 requests/second per account</strong> (was
+  expressed per minute and per IP); bursts are slowed down before anything is rejected.<br>
+  <strong>Payout IP allowlist</strong> available on request
+  (<a href="#payout-ip-allowlist">PayOut</a>).<br>
+  <code>GET /v1.0/wallet/balance</code> returns <code>200</code> with
+  <code>"available": "0.00"</code> for an account with no wallet movements yet, instead of
+  <code>404</code> — and reports <code>pending</code> correctly from the first day.<br>
+  <code>GET /v1.0/payout</code> no longer drops results older than 180 days: the list and its
+  <code>X-Total</code> header now agree for any date range you ask for.<br>
+  <code>payer.reference</code> must be sent as a <strong>JSON string</strong>. A bare JSON number
+  is rejected: values above 2<sup>53</sup> lose precision when parsed and would be stored as a
+  different reference than the one you sent.</td></tr>
   <tr><td><code>1.0.0</code></td><td>2026-07</td><td>Initial release of the Granve API:
   Payment (PayIn), Payment (PayOut), Wallet and Tools endpoints; unified webhook contract
   (<code>id</code>/<code>status</code>/<code>order</code>); guides for authentication, errors,
@@ -1150,7 +1207,14 @@ async function importPrivateKey(raw) {
   return crypto.subtle.importKey("raw", enc.encode(raw), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
 }
 
-async function signWithPrivateKey(msg) {
+/* La cadena canónica: X-Date, salto de línea, "MÉTODO ruta". La ruta va sin host y sin
+   query — la misma regla para todos los endpoints, lleven cuerpo o no. */
+function canonicalString(date, method, path) {
+  return date + "\n" + method.toUpperCase() + " " + path;
+}
+
+async function signWithPrivateKey(date, method, path) {
+  const msg = canonicalString(date, method, path);
   const sig = await crypto.subtle.sign("HMAC", privKey, new TextEncoder().encode(msg));
   return [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, "0")).join("");
 }
@@ -1313,7 +1377,7 @@ function baseUrl() {
         headers: {
           "Authorization": "Bearer " + $("#c-pub").value.trim(),
           "X-Date": date,
-          "X-Sign": await signWithPrivateKey(date),
+          "X-Sign": await signWithPrivateKey(date, "GET", "/v1.0/payment-methods"),
         },
       });
       if (! res.ok) throw new Error("HTTP " + res.status);
@@ -1351,7 +1415,9 @@ PRIVATE_TOKEN="your_private_token"
 BASE_URL="${ctx.base}"
 
 DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-SIGN=$(printf '%s' "$DATE" | openssl dgst -sha256 -hmac "$PRIVATE_TOKEN" -hex | sed 's/^.* //')
+# Signed string: the date, a newline, then "METHOD path".
+SIGN=$(printf '%s\\n%s %s' "$DATE" "${ctx.method}" "${ctx.signPath}" \\
+  | openssl dgst -sha256 -hmac "$PRIVATE_TOKEN" -hex | sed 's/^.* //')
 
 curl -s -X ${ctx.method} "$BASE_URL${ctx.path}" \\
   -H "Authorization: Bearer $PUBLIC_TOKEN" \\
@@ -1372,7 +1438,9 @@ const PRIVATE_TOKEN = 'your_private_token';
 const BASE_URL = '${ctx.base}';
 
 const date = new Date().toISOString().replace(/\\.\\d+Z$/, 'Z');
-const sign = crypto.createHmac('sha256', PRIVATE_TOKEN).update(date).digest('hex');
+// Signed string: the date, a newline, then "METHOD path".
+const signedString = \`\${date}\\n${ctx.method} ${ctx.signPath}\`;
+const sign = crypto.createHmac('sha256', PRIVATE_TOKEN).update(signedString).digest('hex');
 
 const res = await fetch(\`\${BASE_URL}${ctx.path}\`, {
   method: '${ctx.method}',
@@ -1405,7 +1473,9 @@ PRIVATE_TOKEN = 'your_private_token'
 BASE_URL = '${ctx.base}'
 
 date = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
-sign = hmac.new(PRIVATE_TOKEN.encode(), date.encode(), hashlib.sha256).hexdigest()
+# Signed string: the date, a newline, then "METHOD path".
+signed_string = f"{date}\\n${ctx.method} ${ctx.signPath}"
+sign = hmac.new(PRIVATE_TOKEN.encode(), signed_string.encode(), hashlib.sha256).hexdigest()
 
 headers = {
     'Authorization': f'Bearer {PUBLIC_TOKEN}',
@@ -1430,7 +1500,9 @@ $privateToken = 'your_private_token';
 $baseUrl = '${ctx.base}';
 
 $date = gmdate('Y-m-d\\TH:i:s\\Z');
-$sign = hash_hmac('sha256', $date, $privateToken);
+// Signed string: the date, a newline, then "METHOD path".
+$signedString = $date . "\\n" . '${ctx.method} ${ctx.signPath}';
+$sign = hash_hmac('sha256', $signedString, $privateToken);
 
 $ch = curl_init($baseUrl . '${ctx.path}');
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -1471,8 +1543,10 @@ func main() {
 	baseURL := "${ctx.base}"
 
 	date := time.Now().UTC().Format("2006-01-02T15:04:05Z")
+	// Signed string: the date, a newline, then "METHOD path".
+	signedString := date + "\\n" + "${ctx.method} ${ctx.signPath}"
 	mac := hmac.New(sha256.New, []byte(privateToken))
-	mac.Write([]byte(date))
+	mac.Write([]byte(signedString))
 	sign := hex.EncodeToString(mac.Sum(nil))
 
 `;
@@ -1517,10 +1591,13 @@ public class GranveRequest {
         String date = ZonedDateTime.now(ZoneOffset.UTC)
             .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));
 
+        // Signed string: the date, a newline, then "METHOD path".
+        String signedString = date + "\\n" + "${ctx.method} ${ctx.signPath}";
+
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(privateToken.getBytes("UTF-8"), "HmacSHA256"));
         StringBuilder sign = new StringBuilder();
-        for (byte b : mac.doFinal(date.getBytes("UTF-8"))) {
+        for (byte b : mac.doFinal(signedString.getBytes("UTF-8"))) {
             sign.append(String.format("%02x", b));
         }
 
@@ -1570,9 +1647,13 @@ int main(void) {
     time_t now = time(NULL);
     strftime(date, sizeof date, "%Y-%m-%dT%H:%M:%SZ", gmtime(&now));
 
+    /* Signed string: the date, a newline, then "METHOD path". */
+    char signed_string[256];
+    snprintf(signed_string, sizeof signed_string, "%s\\n%s %s", date, "${ctx.method}", "${ctx.signPath}");
+
     unsigned char *digest = HMAC(EVP_sha256(),
         private_token, (int) strlen(private_token),
-        (const unsigned char *) date, strlen(date), NULL, NULL);
+        (const unsigned char *) signed_string, strlen(signed_string), NULL, NULL);
     char sign[65];
     for (int i = 0; i < 32; i++) {
         sprintf(sign + i * 2, "%02x", digest[i]);
@@ -2174,7 +2255,11 @@ function endpointCtx(ep) {
     const qs = ep.query.filter(([, v]) => v).map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
     if (qs) path += "?" + qs;
   }
-  return { method: ep.method, base, path, body: ep.body || null };
+  /* 🔴 `signPath` es la ruta SIN query: es lo único que entra en la firma. `path` conserva
+     la query porque es la URL que se llama de verdad. Mezclarlas hacía que el ejemplo de
+     cualquier listado —los que llevan `?start_date=…`— firmara algo distinto de lo que el
+     servidor verifica, y el integrador recibía un 401 copiando y pegando. */
+  return { method: ep.method, base, path, signPath: path.split("?")[0], body: ep.body || null };
 }
 
 function renderSample(id, ctx) {
@@ -2190,12 +2275,14 @@ function renderAllSamples() {
     method: "GET",
     base: baseUrl() || "https://api-sandbox.granve.com",
     path: "/v1.0/payment/pi_00000000000000000000000000000000",
+    signPath: "/v1.0/payment/pi_00000000000000000000000000000000",
     body: null,
   });
   renderSample("quickstart", {
     method: "POST",
     base: baseUrl() || "https://api-sandbox.granve.com",
     path: "/v1.0/payment",
+    signPath: "/v1.0/payment",
     body: CREATE_BODY,
   });
   const wv = document.querySelector('.tabs[data-for="webhook-verify"]');
@@ -2464,7 +2551,9 @@ document.addEventListener("click", async e => {
   const t0 = performance.now();
   try {
     const date = cleanIsoNow();
-    const sign = await signWithPrivateKey(date);
+    /* La firma cubre el método y la RUTA, así que se toma del propio `url` que se va a
+       llamar: sin host y sin query, que es exactamente lo que firma el servidor. */
+    const sign = await signWithPrivateKey(date, ep.method, new URL(url).pathname);
     const headers = { "Authorization": "Bearer " + pub, "X-Date": date, "X-Sign": sign };
     if (body) headers["Content-Type"] = "application/json";
     const res = await fetch(url, { method: ep.method, headers, body, mode: "cors" });

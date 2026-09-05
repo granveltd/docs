@@ -6,7 +6,7 @@ servers:
     description: Sandbox
 info:
   title: Granve API
-  version: "1.0.0"
+  version: "1.1.0"
   contact:
     email: hola@granve.com
   description: |
@@ -25,8 +25,10 @@ info:
     in America/Caracas time (UTC−4, no DST); the `X-Date` request header, in contrast, must
     be UTC.
 
-    Rate limit: 1200 requests/minute per IP. Every response carries `X-RateLimit-Limit` and
+    Rate limit: 100 requests/second per account. Every response carries `X-RateLimit-Limit` and
     `X-RateLimit-Remaining`; exceeding the limit returns `429` with a `Retry-After` header.
+    A short burst above the limit is slowed down rather than rejected — expect latency before
+    a `429`. Respect `Retry-After`; retrying immediately makes the spike worse.
 
     ## Quickstart
 
@@ -77,13 +79,29 @@ info:
     - `Authorization`: `Bearer your_public_token`
     - `X-Date`: current UTC timestamp, ISO-8601 with explicit `Z` suffix
       (`YYYY-MM-DDTHH:MM:SSZ`), within ±5 minutes of server time.
-    - `X-Sign`: hex HMAC-SHA256 of the `X-Date` value, keyed with your private token.
+    - `X-Sign`: hex HMAC-SHA256 of the **signed string**, keyed with your private token.
 
-    Example (PHP):
+    The signed string is the same shape for every endpoint, now and in the future:
+
+    ```
+    {X-Date}\n{METHOD} {path}
+    ```
+
+    - `{X-Date}` — the exact value sent in the header, character for character.
+    - `{METHOD}` — uppercase HTTP verb (`GET`, `POST`).
+    - `{path}` — path only, **without host and without query string** (`/v1.0/payout`).
+
+    Separated by a single newline, one space between method and path. There is no request body,
+    no query string and no per-endpoint special case: an endpoint that takes no body is signed
+    exactly like one that does. Because the signature covers the method and the path, it is only
+    valid for the exact call it was built for.
+
+    Example (PHP), for `POST /v1.0/payout`:
 
     ```php
     $date = gmdate("Y-m-d\TH:i:s\Z");
-    $sign = hash_hmac('sha256', $date, $your_private_token);
+    $signedString = $date . "\n" . 'POST /v1.0/payout';
+    $sign = hash_hmac('sha256', $signedString, $your_private_token);
     ```
 
     An invalid or expired `X-Date` returns `401` with `error.code = "date_invalid"`.
@@ -140,11 +158,7 @@ info:
     at most **15 minutes** in the future; the request is rejected once it passes, so the
     URL is short-lived rather than a bearer credential that keeps working for as long as
     the order is reachable. Build it right before you use it, not ahead of time.
-    The older form without `expires` — `{valid}` = HMAC_SHA256(id, your_private_token) —
-    is **deprecated** and still accepted for now. It never expired, and because the
-    signature travels in the path it ends up in every access log the URL passes through.
-    Migrate: add `expires` and include it in the HMAC input. The authenticated GET
-    remains the source of truth.
+    The authenticated GET remains the source of truth.
 
     ### Verification failed (host2host only)
 
@@ -329,7 +343,7 @@ paths:
                     reference: {
                       type: string,
                       pattern: '^[0-9]{4,20}$',
-                      description: "The transfer reference from the payer's receipt, 4 to 20 digits. Send it in full: only the LAST 14 are kept, because every bank matches by suffix — trimming from the left does not shorten a reference, it turns it into a different one. It must not equal the phone or the document."
+                      description: "The transfer reference from the payer's receipt, 4 to 20 digits. Send it as a JSON STRING (\"12345678\"), never as a bare number: above 2^53 a JSON number loses precision when parsed, and the reference stored would not be the one you sent — such requests are rejected. Send it in full: only the LAST 14 are kept, because every bank matches by suffix — trimming from the left does not shorten a reference, it turns it into a different one. It must not equal the phone or the document."
                     }
                     date: {
                       type: string,
@@ -582,7 +596,7 @@ paths:
         - name: valid
           in: path
           required: true
-          description: "HMAC_SHA256(id, your_private_token), hex."
+          description: 'HMAC_SHA256(id + "." + expires, your_private_token), hex.'
           schema: { type: string, pattern: '^[a-f0-9]{64}$' }
       responses:
         "200":
@@ -594,6 +608,16 @@ paths:
       summary: Create
       description: |
         Creates a payout to a beneficiary and debits your wallet (amount + fee).
+
+        **IP allowlist (recommended).** Because this endpoint moves money out of your wallet,
+        it can be restricted to the public IPs (or CIDR ranges) your backend calls from. Send
+        them to us and we register them on your account; a request from any other address is
+        then rejected with `403` and `error.code = "ip_not_allowed"`. Nothing changes in your
+        code. It is the one control that still protects you if your credentials leak, because
+        a stolen signature is useless from an address that is not yours — tell us before you
+        change hosting or add a server.
+
+        Currency is **VES** only; any other `currency` returns `400`.
 
         The destination is defined by `bank.num`: an 11-digit mobile number selects
         Pago Móvil (`bank.code` required), a 20-digit account number selects bank
@@ -812,7 +836,10 @@ paths:
     get:
       tags: [Wallet]
       summary: Balance
-      description: Returns your current wallet balance (VES).
+      description: >-
+        Returns your current wallet balance (VES). A brand-new account with no wallet movements
+        yet returns `200` with `"available": "0.00"` — not `404` — and its `pending` is already
+        accurate, so you can query it from your first day.
       parameters:
         - $ref: "#/components/parameters/HeaderAuthorization"
         - $ref: "#/components/parameters/HeaderDate"
@@ -1017,7 +1044,9 @@ components:
       name: X-Sign
       in: header
       required: true
-      description: "Hex HMAC-SHA256 of the X-Date value, keyed with your private token."
+      description: >-
+        Hex HMAC-SHA256 of the signed string `{X-Date}\n{METHOD} {path}`, keyed with your private
+        token. Path only — no host, no query string. See Authentication.
       schema: { type: string }
 
   responses:
