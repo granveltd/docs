@@ -6,7 +6,7 @@ servers:
     description: Sandbox
 info:
   title: Granve API
-  version: "1.2.0"
+  version: "1.1.0"
   contact:
     email: hola@granve.com
   description: |
@@ -25,49 +25,19 @@ info:
     in America/Caracas time (UTC−4, no DST); the `X-Date` request header, in contrast, must
     be UTC.
 
-    Rate limit: 100 requests/second per account, shared by all its credentials. Every response
-    carries `X-RateLimit-Limit` and
+    Rate limit: 100 requests/second per account. Every response carries `X-RateLimit-Limit` and
     `X-RateLimit-Remaining`; exceeding the limit returns `429` with a `Retry-After` header.
     A short burst above the limit is slowed down rather than rejected — expect latency before
     a `429`. Respect `Retry-After`; retrying immediately makes the spike worse.
 
-    ## What changes for your integration (1.2.0)
-
-    Version 1.2.0 changes how credentials work. Five things to know:
-
-    1. **Each credential only does what it is allowed to**, service by service — PayIn and
-       PayOut at *View* or *View and create*; Balance at *View*. A request outside its
-       permissions gets `403`: `token_permission_denied` (it lacks the service, or the level) or
-       `token_payment_method_denied` (not that payment method). See Credentials › Permissions by
-       endpoint for the service and level of every endpoint.
-    2. **We record which credential made each call.** Quote the `request_id` of an error, or the
-       `X-Request-Id` header of any response, and we can tell you which credential made it. See
-       Credentials.
-    3. **Each webhook is signed by the credential that created the payment or payout**, even
-       after you deactivate it or it expires. The body carries `credential` (inside what is
-       signed) and the `X-Granve-Credential` header names it, so you can pick the private token.
-       Verify with that credential's private token, and reject the delivery if `credential` is
-       not the credential you created that payment or payout with. Keep the private token of a
-       deactivated or expired credential for at least 30 days. See Webhooks.
-    4. **A credential can expire.** When it is created you choose 1 day, 7 days, 1 month or no
-       expiry. An expired credential gets `401` with `credential_expired`. The account holder
-       and Granve are emailed 24 hours before a 7-day or 1-month credential expires, and when
-       any credential expires. See Credentials › Expiry.
-    5. **Each environment has its own credentials**, and credentials created from 1.2.0 on accept
-       only the signature described in Authentication. See Environments.
-
-    Credentials issued before 1.2.0 keep working: PayIn and PayOut at *View and create*, Balance
-    at *View*, reading the whole account, with no expiry. Check their payment methods in the
-    portal (see Credentials).
-
     ## Quickstart
 
-    Every integration follows the same path — build against **Sandbox**, then go live with the
-    production base URL and a production credential (each environment has its own credentials):
+    Every integration follows the same path — build against **Sandbox**, then switch the base
+    URL to go live (your credentials are the same in both environments):
 
-    1. **Get your Sandbox credential** — Granve issues it on request (hola@granve.com): a public
-       token (`Authorization` header) and a private token (signing key). ⚠ **The private token is
-       a server-side secret** — anyone who reads it can sign requests as you:
+    1. **Get your credentials** — a public token (`Authorization` header) and a private token
+       (signing key). ⚠ **The private token is a server-side secret** — anyone who reads it can
+       sign requests as you:
        - ✗ never anywhere the browser can get it — page source, JavaScript bundles, a config
          endpoint, cookies or storage — nor sent from it by *any* mechanism (`fetch()`, XHR,
          WebSockets, form posts or whatever comes next);
@@ -76,9 +46,8 @@ info:
          and your server makes the signed call.
 
        Exposing the token in public code is a security vulnerability on your side and your
-       responsibility as an integrator. Suspect a leak? Deactivate that credential right away —
-       in the portal for Production, through hola@granve.com for Sandbox — and get a new one
-       (see Credentials).
+       responsibility as an integrator. Suspect a leak? Request an immediate rotation of
+       your keys.
     2. **Point to Sandbox** — `https://api-sandbox.granve.com`. Nothing there touches real money.
     3. **Sign a request** — send `Authorization`, `X-Date` and `X-Sign` (see Authentication).
     4. **Create a payment order** — `POST /v1.0/payment`; the response contains the `id`
@@ -87,10 +56,8 @@ info:
        payment. In sandbox, a reference ending in `00` simulates a successful payment.
     6. **Confirm the result** — Granve calls your registered webhook and sends the customer back
        to your return URL. Always confirm by querying the API, never by the redirect alone.
-    7. **Go live** — create a production credential in the portal (Configuración › Integración),
-       switch the base URL to `https://api.granve.com` and sign with that credential. Register
-       your production webhook/return URLs (they are per-environment) and check
-       `"livemode": true` in responses.
+    7. **Go live** — switch the base URL to `https://api.granve.com`. Register your production
+       webhook/return URLs (they are per-environment) and check `"livemode": true` in responses.
 
     ## Environments
 
@@ -99,146 +66,11 @@ info:
     | Production   | https://api.granve.com            |
     | Sandbox      | https://api-sandbox.granve.com    |
 
-    **Each environment has its own credentials.** Production credentials are created in the
-    merchant portal (see Credentials); Sandbox credentials are issued by Granve on request
-    (hola@granve.com). A credential only works in its own environment: sent to the other one, it
-    is rejected with `401`. If you integrated before 1.2.0, your credential keeps working in
-    Sandbox until Granve issues you a Sandbox credential of your own — you will be told the date
-    in advance.
-
-    ⚠ A request to `https://api.granve.com` with a production credential creates a real
-    transaction that moves real money, even from test code. Keep the base URL and the credential
-    together in one config per environment, never mix them, and assert `livemode` on every
-    response: `false` = Sandbox (safe), `true` = Production (real).
-
-    ## Credentials
-
-    A credential is what your backend signs with: a **public token** (`prkey-…`, sent in the
-    `Authorization` header) and a **private token** (`prscr-…`, the signing key). An account can
-    have as many credentials as it needs — one per store, backend or team — and each one states
-    what it is for and how long it is valid. Administrators of your account create, edit and
-    deactivate the production ones in the Granve merchant portal, under
-    **Configuración › Integración** (`https://comercios.granve.com/configuracion/integracion`).
-    Sandbox credentials are issued by Granve on request (see Environments).
-
-    Every credential has:
-
-    - a **name**, chosen by you and unique among your active credentials;
-    - an **ID** (`ai_…`). It is not secret: the portal shows it, and every webhook carries it
-      (see Webhooks);
-    - its **permissions**, service by service, each at one level: No, *View* (*Ver* in the
-      portal) or *View and create* (*Ver y crear*). A credential has at least one service:
-      - **PayIn** (*Cobros*): *View* lists and gets your payment orders; *View and create* also
-        creates them, with the payment methods it may charge with — only methods enabled on
-        your account;
-      - **PayOut** (*Pagos*): *View* lists and gets your payouts; *View and create* also sends
-        them;
-      - **Balance** (*Saldo*): *View* only — the balance and the wallet movements. A credential
-        with Balance and without PayOut can reconcile but cannot pay;
-    - **what it reads**: the whole account (*Ve toda la cuenta*) or only what it created
-      (*Ve solo lo que crea*), within the services it can view: it never gives access to a
-      service the credential does not have;
-    - its **validity** (*Vale por*): 1 day, 7 days, 1 month or no expiry (*Sin vencimiento*),
-      chosen when it is created.
-
-    A credential **restricts, it never grants**: it only uses what your account has contracted
-    and enabled. Its permissions apply on every request, and an edit applies from the next one.
-    A request outside them is rejected with `403` — `token_permission_denied` or
-    `token_payment_method_denied` (see Errors). Every call is recorded with the credential that
-    made it.
-
-    - **The private token is shown once**, when the credential is created; the credential is
-      ready to use a few seconds later. Granve cannot show the private token again: if you lose
-      it, deactivate the credential and create a new one.
-    - **Editing** changes the name, the services and their levels, and the payment methods —
-      never the tokens or the validity. A payment method can be added only if it is enabled on
-      your account; any can be removed.
-    - **Deactivating is permanent** and takes effect at once: the credential stops
-      authenticating (`401`), but it keeps signing the webhooks of what it created (see
-      Webhooks).
-    - **Rotating** a credential is creating a new one, switching your backend to it and then
-      deactivating the old one.
-    - Editing and deactivating a credential ask for a 6-digit code, sent to the security contact
-      of the administrator who does it; creating one asks for it only when it has PayOut at
-      *View and create*. The account holder and Granve are emailed on every creation, edit,
-      deactivation and expiry.
-    - **A new payment method is not added on its own.** When Granve enables a method on your
-      account, add it to the credentials that should charge with it by editing them — or ask
-      Granve, who can edit or deactivate a production credential for you. The account holder is
-      emailed either way.
-    - **Credentials issued before 1.2.0** keep working and do not expire. They are listed in the
-      portal with PayIn and PayOut at *View and create*, Balance at *View* and whole-account
-      reads: check which payment methods they have, and edit them to add any enabled method
-      they lack.
-    - All the credentials of an account **share its rate limit** (100 requests/second) and its
-      `order` identifiers: an `order` is unique across all of them.
-
-    ### Permissions by endpoint
-
-    Every endpoint needs one service at one level. A credential without it gets
-    `403 token_permission_denied`, right after authentication and the rate limit (see Errors);
-    what the credential reads (the whole account or only what it created) only narrows what the
-    credential can already view.
-
-    | Endpoint | Service and level it needs |
-    |---|---|
-    | `POST /v1.0/payment` | PayIn at *View and create*, and the `payment` method among its methods |
-    | `GET /v1.0/payment`, `/payment/{id}`, `/payment/order/{order}` | PayIn at *View* or more |
-    | `POST /v1.0/payout` | PayOut at *View and create* |
-    | `GET /v1.0/payout`, `/payout/{id}`, `/payout/order/{order}` | PayOut at *View* or more |
-    | `GET /v1.0/wallet/balance`, `/wallet`, `/wallet/{id}` | Balance at *View* |
-    | `GET /v1.0/payment-methods`, `GET /v1.0/banks` | None — any active credential |
-    | `GET /v1.0/payment/notify/{id}/valid/{valid}` | None — it carries its own signature (see Webhooks) |
-
-    A payment method the credential does not have gets `403 token_payment_method_denied`.
-    `GET /v1.0/payment-methods` lists exactly the methods the credential you sign with can
-    charge with, and an empty array when it does not have PayIn at *View and create*.
-
-    ### When Granve pauses a payment method
-
-    Granve can pause a payment method — for every account or for yours. A pause does not change
-    your credential: while it lasts, `POST /v1.0/payment` with that method gets
-    `403 payment_method_disabled` even if the credential has the method,
-    `GET /v1.0/payment-methods` does not list it, and it cannot be added to a credential. When
-    Granve resumes it, the same credential charges with it again: there is nothing to edit.
-    Meanwhile, retry later or charge with another method.
-
-    ### Expiry
-
-    The validity is chosen when the credential is created — 1 day, 7 days, 1 month or no expiry
-    — and cannot be changed later. To keep integrating past that date, create a new credential
-    before it expires and switch your backend to it.
-
-    - From the second it expires, the credential no longer authenticates: a request **correctly
-      signed** with it gets `401` with `error.code = "credential_expired"` and
-      `error.message = "This credential expired. Create a new one in the merchant portal."`. A
-      request whose signature is wrong gets `auth_failed`, as always: `credential_expired` is
-      only returned when the signature is valid. The portal then shows the credential as
-      *Vencida*.
-    - The account holder and Granve are emailed 24 hours before a 7-day or 1-month credential
-      expires, and when any credential expires. Sandbox does not send these emails.
-    - An expired credential cannot be edited or reactivated, but it keeps signing the webhooks
-      of what it created (see Webhooks): keep its private token for at least 30 days.
-    - Credentials issued before 1.2.0 do not expire.
-
-    ### A credential that reads only what it created
-
-    What a credential reads only narrows what the credential can already view: first it needs the
-    service at *View* (see Permissions by endpoint; otherwise `403 token_permission_denied`),
-    and then it sees only what it created:
-
-    - `GET /v1.0/payment` and `GET /v1.0/payout` list only what this credential created: the
-      page, `X-Total` and the cursor count only those.
-    - `GET /v1.0/payment/{id}`, `/payment/order/{order}`, `/payout/{id}` and
-      `/payout/order/{order}` answer `404` for anything created by another credential.
-    - `GET /v1.0/wallet` and `GET /v1.0/wallet/{id}` return only the movements of its own
-      payouts: the payout debit, its fee and, if the payout was declined, the refund.
-    - `GET /v1.0/wallet/balance` returns the same balance as for the whole account: there is no
-      balance of its own. Like the rest of `/wallet`, it needs Balance at *View*.
-    - `GET /v1.0/payment-methods` and `GET /v1.0/banks` do not depend on what it reads.
-
-    Payments created by a payment button belong to no credential: only a credential that reads
-    the whole account sees them. The `order` is still unique across the whole account.
+    ⚠ The base URL is the only thing that separates test from real money. Your credentials are
+    identical on both environments — there is no test-only key. A request to `https://api.granve.com`
+    creates a real transaction that moves real money, even from test code. Keep the host in a single
+    config constant, and assert `livemode` on every response: `false` = Sandbox (safe), `true` =
+    Production (real).
 
     ## Authentication
 
@@ -274,23 +106,10 @@ info:
 
     An invalid or expired `X-Date` returns `401` with `error.code = "date_invalid"`.
 
-    Credentials created from 1.2.0 on — in the portal, or issued by Granve for Sandbox — accept
-    **only** this signature: a request signed any other way is rejected with `401`
-    (`auth_failed`). So is a credential sent to the other environment (see Environments), or one
-    that was deactivated.
-
-    A credential that has expired gets `401` with `error.code = "credential_expired"`, but only
-    when the request is correctly signed with it (see Credentials › Expiry).
-
-    If the credential cannot be checked on our side, the API answers `503` with
-    `error.code = "service_unavailable"` and
-    `error.message = "The service is temporarily unavailable. Retry later."`: nothing was
-    processed. Retry with backoff.
-
     ## Testing
 
-    The sandbox at `https://api-sandbox.granve.com` is a fully isolated environment with its
-    own credentials, issued by Granve on request (see Environments).
+    The sandbox at `https://api-sandbox.granve.com` is a fully isolated environment:
+    your same credentials work on both environments — only the base URL changes.
     Nothing in sandbox touches real money. On the sandbox payment page, the outcome
     is decided by the LAST TWO DIGITS of the reference you type: `00` = payment
     confirmed (order completed), `99` = bank cannot find it, `50` = amount mismatch
@@ -301,75 +120,15 @@ info:
     `99` = declined (wallet refunded, webhook fires), `50` = stays in created (test
     polling), anything else = completed in ~10 seconds (webhook fires).
 
-    **Differences with Production.**
-
-    - Credentials: Sandbox has its own, issued by Granve on request (see Environments).
-    - Expiry emails: Sandbox sends no email — neither the notice 24 hours before a credential
-      expires nor the one when it expires. A Sandbox credential still expires on its date (Granve
-      tells you when it issues it) and then gets `401 credential_expired`.
-    - Refunds seen by a credential that reads only what it created: in Sandbox it does not see
-      the refund movement of a declined payout (the simulated refund is not linked to the
-      payout). In Production it does.
-
     ## Errors
 
-    Every error uses the same envelope:
+    Every error — validation, auth, not-found, server — uses the same envelope:
     `{"status": "failed", "error": {"code": "...", "message": "...", "request_id": "..."}}`.
-    Branch on the HTTP status and on `error.code`, never on `message` or `hint`: they are for
-    people and their wording may change (some PayOut hints are in Spanish). `fields` (per-field
-    detail) appears only on `400`/`409`. `request_id` is on every error except `429` and the
-    three body checks — quote it in support requests. The `date_invalid` case adds a `hint` and
-    an `example` timestamp. New codes may be added: treat a code you do not know by its HTTP
-    status.
-
-    | `error.code` | HTTP | Meaning |
-    |---|---|---|
-    | `invalid_request` | 400 / 409 | Validation failed (`fields` says where), or the `order` already exists (`409`, read its `hint`). |
-    | `INVALID_CONTENT_TYPE` | 415 | A `POST` without `Content-Type: application/json` ("Request body must be JSON."). Uppercase, no `request_id`. |
-    | `EMPTY_BODY` | 400 | A `POST` with an empty body ("Request body must be a non-empty JSON object."). Uppercase, no `request_id`. |
-    | `INVALID_JSON` | 400 | A `POST` whose body is not valid JSON ("Malformed JSON payload."). Uppercase, no `request_id`. |
-    | `rate_unavailable` | 400 | PayOut: there is no current exchange rate. Nothing was created or debited; retry later. |
-    | `amount_limit_exceeded` | 400 | PayOut: `amount` is above the current maximum per payout, given in `hint`. |
-    | `date_invalid` | 401 | `X-Date` is missing, malformed or outside ±5 minutes. Adds `hint` and `example`. |
-    | `auth_failed` | 401 | Unknown or deactivated credential, a credential of the other environment, or a wrong signature ("Invalid authentication credentials."). |
-    | `credential_expired` | 401 | The credential expired ("This credential expired. Create a new one in the merchant portal."). Only when the request is correctly signed with it (see Credentials › Expiry). |
-    | `token_permission_denied` | 403 | This credential does not have the service this call needs — PayIn, PayOut or Balance — at the level it needs: *View* to read, *View and create* to create (see Credentials › Permissions by endpoint) ("This credential is not allowed to perform this operation."). |
-    | `token_payment_method_denied` | 403 | PayIn: this credential may not charge with that `payment` method ("This credential is not allowed to use this payment method."). |
-    | `ip_not_allowed` | 403 | PayOut from an IP outside your allowlist. |
-    | `account_blocked` | 403 | Your account cannot create payments or payouts right now. Contact Granve. |
-    | `payin_disabled` | 503 / 403 | PayIn is paused — for every account (`503`, temporary) or for yours (`403`). |
-    | `payout_disabled` | 503 / 403 | PayOut is paused — for every account (`503`, temporary) or for yours (`403`). |
-    | `payment_method_disabled` | 403 | PayIn: Granve paused that payment method, for every account or for yours. Your credential is not changed: when the pause ends it charges with that method again. Meanwhile, retry later or charge with another method (see Credentials › When Granve pauses a payment method). |
-    | `emission_channel_disabled` | 403 | PayOut: the channel that would send the payout is paused. |
-    | `forbidden` | 403 | Not allowed, and no more specific code applies ("This operation is not allowed."). Do not retry as-is. |
-    | `not_found` | 404 | No resource matched — including one created by another credential, when yours reads only what it created. |
-    | `api_error` | 500 / 503 | Failure on Granve's side (`503`: no payout channel is available for your account). Retry with backoff. |
-    | `service_unavailable` | 503 | Authentication or an availability check could not be completed. Nothing was processed; retry with backoff. From authentication, `message` is "The service is temporarily unavailable. Retry later." |
-
-    A `429` carries no `code`. From the API its body is
-    `{"status": "failed", "error": {"message": "Too many requests"}}` with a `Retry-After`
-    header; when the limit is hit at the edge, the answer is an HTML page instead. Branch on the
-    status, not on the body, and respect `Retry-After` when present.
-
-    **Precedence.** When several errors apply, you get the first one in this order:
-
-    - `POST /v1.0/payment`: `401` (`date_invalid`, `auth_failed`, `credential_expired`) or
-      `503 service_unavailable` (authentication) → `429` → `403 token_permission_denied` (not
-      PayIn at *View and create*) → `415` / `400` body checks → `400 invalid_request`
-      (validation) → `403 account_blocked`, `503 service_unavailable`, `503` / `403 payin_disabled`
-      → `400 invalid_request` (`fields.payment`: unsupported payment method — not available on
-      your account) → `403 token_payment_method_denied` → `403 payment_method_disabled` (paused by
-      Granve) → `409` duplicate `order`.
-    - `POST /v1.0/payout`: `401` or `503 service_unavailable` (authentication) → `429` →
-      `403 token_permission_denied` (not PayOut at *View and create*) → `415` / `400` body checks
-      → `403 ip_not_allowed` → `400` / `409 invalid_request` (validation, duplicate `order`) →
-      `503 api_error` (no payout channel) → `403 account_blocked`, `503 service_unavailable`,
-      `503` / `403 payout_disabled`, `403 emission_channel_disabled` → `400 rate_unavailable`,
-      `400 amount_limit_exceeded` → `400 invalid_request` (balance).
-    - Every `GET` of `/v1.0/payment…`, `/v1.0/payout…` and `/v1.0/wallet…`: `401` or
-      `503 service_unavailable` (authentication) → `429` → `403 token_permission_denied` (not
-      PayIn, PayOut or Balance at *View*) → `400 invalid_request` (query or path parameters) →
-      `404 not_found`.
+    `code` is always present: `invalid_request` (400/409), `date_invalid` (401),
+    `auth_failed` (401), `not_found` (404) or `api_error` (500). `message` is always a
+    string. `fields` (per-field detail) appears only on validation (400/409). `request_id`
+    is always present — quote it in support requests. The `date_invalid` case adds a `hint`
+    and an `example` timestamp.
 
     ## Webhooks & return URL
 
@@ -385,44 +144,17 @@ info:
     arrives — and `created`, the host2host notice described below. The full list is the `status` enum of
     `PaymentWebhook`.
 
-    The payload is `id`, `status` and `order` (query string + JSON body) plus `livemode` and
-    `credential` (body only). `credential` is the ID (`ai_…`) of the credential whose private
-    token signed the delivery. Every delivery is signed over its body: headers `X-Date`
-    (UTC ISO-8601 Z), `X-Granve-Credential` (the same ID as `credential`) and
-    `X-Sign` = HMAC_SHA256(X-Date + "." + raw_body, private token of that credential). Signing
-    the body (not just the timestamp) means a captured signature cannot be reused with a
-    different payload.
-
-    **Which credential signs.** The credential that created the payment or payout signs every
-    delivery about it — even after it has been deactivated or has expired. Payments created by a
-    payment button belong to no credential: they are signed by your credential issued before
-    1.2.0 while it is active, otherwise by your most recently created active credential, or by
-    the last one your account had. Keep the private token of a deactivated or expired credential
-    for at least 30 days: payout webhooks are retried for 30 days — and for as long as you may
-    re-notify its payments manually (up to 3 months).
-
-    **How to verify.**
-
-    1. Pick the private token by `X-Granve-Credential`, from your own store of credentials —
-       never by trying your tokens one by one. An ID that is not yours: reject.
-    2. Recompute the HMAC over the received X-Date and the exact raw body, compare in constant
-       time, and reject if X-Date is older than 5 minutes.
-    3. Trust the body, not the header: `credential` must equal `X-Granve-Credential` (the header
-       is not signed) and, for a payment or payout you created through the API, it must be the
-       credential you created it with. Otherwise reject: a leaked private token of another of
-       your credentials cannot forge deliveries about what it did not create.
-
-    Delivery rules (identical for all): one delivery per `id`+`status`;
+    The payload is `id`, `status` and `order` (query string + JSON body) plus `livemode`
+    (body only). Every delivery is signed over its body: headers `X-Date` (UTC ISO-8601 Z)
+    and `X-Sign` = HMAC_SHA256(X-Date + "." + raw_body, your_private_token). Signing the
+    body (not just the timestamp) means a captured signature cannot be reused with a
+    different payload — recompute over the received X-Date and the exact raw body,
+    constant-time compare, reject if older than 5 minutes. Delivery rules (identical for all): one delivery per `id`+`status`;
     acknowledge with HTTP `200` exactly; failed deliveries retried 3 times, 5 s apart,
     then an automatic recovery job re-queues undelivered notifications every 10 minutes
     (payments 7 days, payouts 30). Manual re-notification (payments):
     `GET /v1.0/payment/notify/{id}/valid/{valid}?expires={unix}` with `{valid}` =
-    HMAC_SHA256(id + "." + expires, private token of the credential that created the order —
-    for a payment button's order, or when that credential is no longer active: your credential
-    issued before 1.2.0 while it is active, otherwise your most recently created active
-    credential). A deactivated or expired credential is never accepted here. The re-sent delivery
-    carries `credential` and
-    `X-Granve-Credential` like any other. `expires` is a Unix timestamp
+    HMAC_SHA256(id + "." + expires, your_private_token). `expires` is a Unix timestamp
     at most **15 minutes** in the future; the request is rejected once it passes, so the
     URL is short-lived rather than a bearer credential that keeps working for as long as
     the order is reachable. Build it right before you use it, not ahead of time.
@@ -437,7 +169,7 @@ info:
 
     ```json
     {
-      "id": "pi_…", "status": "created", "order": "ORD-1", "livemode": true, "credential": "ai_…",
+      "id": "pi_…", "status": "created", "order": "ORD-1", "livemode": true,
       "reason": "payment_not_found",
       "retryable": true,
       "attempts_left": 2
@@ -515,8 +247,7 @@ paths:
         when one account serves several storefronts with separate backends.
 
         Idempotency on timeout: your `order` is the idempotency key. If this request times out
-        with no response, retry with the same `order` and the same credential. A `409` means the
-        first request already
+        with no response, retry with the same `order`. A `409` means the first request already
         created it (never a duplicate) — recover it with `GET /v1.0/payment/order/{order}` to
         read its `id` and `redirect_url`. Never generate a new `order` for a retry: that is how
         double charges happen.
@@ -541,7 +272,7 @@ paths:
               properties:
                 payment:
                   type: string
-                  description: "Id of the payment method to charge with — list the ones the credential you sign with can use with GET /v1.0/payment-methods (Tools)."
+                  description: "Id of the payment method to charge with — list the ones enabled for your account with GET /v1.0/payment-methods (Tools)."
                 amount:
                   type: string
                   pattern: '^[0-9]+(\.[0-9]{1,2})?$'
@@ -650,127 +381,23 @@ paths:
                 default:
                   $ref: "#/components/examples/PaymentOrderExample"
         "400":
-          description: >-
-            Validation failed (`invalid_request`, with `fields`), including a `payment` method your
-            account does not have; or the body is empty or not JSON (`EMPTY_BODY`,
-            `INVALID_JSON` — uppercase, without `request_id`).
-          content:
-            application/json:
-              examples:
-                validation:
-                  summary: Validation failed
-                  value:
-                    status: failed
-                    error:
-                      code: invalid_request
-                      message: "Validation failed."
-                      fields:
-                        amount: "must be at least 5 VES"
-                      request_id: "req_…"
-                unsupportedMethod:
-                  summary: Your account does not have that payment method
-                  value:
-                    status: failed
-                    error:
-                      code: invalid_request
-                      message: "Validation failed."
-                      fields:
-                        payment: "unsupported payment method"
-                      request_id: "req_…"
-                emptyBody:
-                  summary: Empty body
-                  value:
-                    status: failed
-                    error:
-                      code: EMPTY_BODY
-                      message: "Request body must be a non-empty JSON object."
+          $ref: "#/components/responses/ValidationError"
         "401":
           $ref: "#/components/responses/AuthError"
-        "403":
-          description: >-
-            Not allowed. `token_permission_denied`: this credential does not have PayIn at View
-            and create. `token_payment_method_denied`: your account has that payment method, this
-            credential does not. `payment_method_disabled`: Granve paused that method, for every
-            account or for yours. Your credential is not changed: when the pause ends it charges
-            with that method again; meanwhile retry later or use another method.
-            `payin_disabled` (PayIn paused for your account) and `account_blocked` can also come
-            here. Any other `403`, without a more specific code, is `forbidden`. Order of checks:
-            see Errors.
-          content:
-            application/json:
-              examples:
-                tokenPermissionDenied:
-                  summary: The credential does not have PayIn at View and create
-                  value:
-                    status: failed
-                    error:
-                      code: token_permission_denied
-                      message: "This credential is not allowed to perform this operation."
-                      request_id: "req_…"
-                tokenPaymentMethodDenied:
-                  summary: The credential may not use that payment method
-                  value:
-                    status: failed
-                    error:
-                      code: token_payment_method_denied
-                      message: "This credential is not allowed to use this payment method."
-                      request_id: "req_…"
-                paymentMethodDisabled:
-                  summary: Granve paused that payment method
-                  value:
-                    status: failed
-                    error:
-                      code: payment_method_disabled
-                      message: "Payments are not available right now."
-                      request_id: "req_…"
         "409":
-          description: >-
-            The `order` identifier already exists for your account — an `order` is unique across
-            all your credentials. `hint` says what happened to the existing one. When your
-            credential reads only what it created and the order belongs to another credential (or
-            to none, as with a payment button), the hint is fixed and says nothing more.
-          content:
-            application/json:
-              examples:
-                existing:
-                  summary: The order exists and your credential can read it
-                  value:
-                    status: failed
-                    error:
-                      code: invalid_request
-                      message: "The request conflicts with an existing resource."
-                      fields:
-                        order: "already exists"
-                      hint: "A payment with this order already exists (completed). Do NOT create a new one: recover it with GET /v1.0/payment/order/{order}."
-                      request_id: "req_…"
-                otherCredential:
-                  summary: The order belongs to another credential
-                  value:
-                    status: failed
-                    error:
-                      code: invalid_request
-                      message: "The request conflicts with an existing resource."
-                      fields:
-                        order: "already exists"
-                      hint: "This order was already used in your account. Use a new order."
-                      request_id: "req_…"
-        "415":
-          $ref: "#/components/responses/UnsupportedMediaType"
-        "500":
-          description: Internal server error.
-        "503":
-          description: >-
-            Temporarily unavailable — nothing was created, so retrying later with the same `order`
-            is safe. `payin_disabled`: PayIn is paused for every account. `service_unavailable`:
-            authentication or an availability check could not be completed; retry with backoff.
+          description: The `order` identifier already exists for your account.
           content:
             application/json:
               example:
                 status: failed
                 error:
-                  code: payin_disabled
-                  message: "Payments are not available right now."
+                  code: invalid_request
+                  message: "The request conflicts with an existing resource."
+                  fields:
+                    order: "already exists"
                   request_id: "req_…"
+        "500":
+          description: Internal server error.
 
       callbacks:
         paymentStatus:
@@ -788,22 +415,12 @@ paths:
                   required: true
                   description: "UTC ISO-8601 with Z. Reject deliveries older than 5 minutes."
                   schema: { type: string, format: date-time }
-                - name: X-Granve-Credential
-                  in: header
-                  required: false
-                  description: >-
-                    ID (`ai_…`) of the credential whose private token signed this delivery — the
-                    same value as `credential` in the body. Use it to pick the private token; it is
-                    not signed, so trust the body field. Not secret. Present on every signed
-                    delivery, like `credential`.
-                  schema: { type: string, pattern: '^ai_' }
                 - name: X-Sign
                   in: header
                   required: true
                   description: >-
-                    HMAC_SHA256(X-Date + "." + raw_body, private token of the credential named in
-                    X-Granve-Credential). Recompute over the received X-Date and the exact raw
-                    body, then compare in constant time.
+                    HMAC_SHA256(X-Date + "." + raw_body, your_private_token). Recompute over the
+                    received X-Date and the exact raw body, then compare in constant time.
                   schema: { type: string }
               requestBody:
                 required: true
@@ -814,7 +431,7 @@ paths:
                     examples:
                       completed:
                         summary: Payment confirmed
-                        value: { id: "pi_…", status: completed, order: "ORD-1", livemode: true, credential: "ai_…" }
+                        value: { id: "pi_…", status: completed, order: "ORD-1", livemode: true }
                       verificationFailedRetryable:
                         summary: Host2host verification failed — order still open
                         value:
@@ -822,7 +439,6 @@ paths:
                           status: created
                           order: "ORD-1"
                           livemode: true
-                          credential: "ai_…"
                           reason: payment_not_found
                           retryable: true
                           attempts_left: 2
@@ -833,7 +449,6 @@ paths:
                           status: declined
                           order: "ORD-1"
                           livemode: true
-                          credential: "ai_…"
                           reason: amount_mismatch
                           retryable: false
               responses:
@@ -849,10 +464,6 @@ paths:
 
         For large volumes use keyset pagination: read the `X-Next-Cursor` response header
         and pass it back as `after_id` to fetch the next page.
-
-        A credential that reads only what it created gets only the orders created with it: the
-        page, `X-Total` and the cursor count only those. Orders created by a payment button
-        belong to no credential and are not in its list.
       parameters:
         - $ref: "#/components/parameters/HeaderAuthorization"
         - $ref: "#/components/parameters/HeaderDate"
@@ -901,20 +512,14 @@ paths:
           $ref: "#/components/responses/ValidationError"
         "401":
           $ref: "#/components/responses/AuthError"
-        "403":
-          $ref: "#/components/responses/NeedsPayInView"
         "500":
           description: Internal server error.
-        "503":
-          $ref: "#/components/responses/ServiceUnavailable"
 
   /v1.0/payment/{id}:
     get:
       tags: [Payment (PayIn)]
       summary: Get
-      description: >-
-        Retrieves one payment order using the `id` returned by Create. A credential that reads
-        only what it created gets `404` for an order created by another credential.
+      description: Retrieves one payment order using the `id` returned by Create.
       parameters:
         - name: id
           in: path
@@ -936,23 +541,16 @@ paths:
                   $ref: "#/components/examples/PaymentOrderExample"
         "401":
           $ref: "#/components/responses/AuthError"
-        "403":
-          $ref: "#/components/responses/NeedsPayInView"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
           description: Internal server error.
-        "503":
-          $ref: "#/components/responses/ServiceUnavailable"
 
   /v1.0/payment/order/{order}:
     get:
       tags: [Payment (PayIn)]
       summary: Get by order
-      description: >-
-        Retrieves one payment order using your own `order` identifier instead of the Granve id.
-        A credential that reads only what it created gets `404` for an order created by another
-        credential.
+      description: Retrieves one payment order using your own `order` identifier instead of the Granve id.
       parameters:
         - name: order
           in: path
@@ -974,14 +572,10 @@ paths:
                   $ref: "#/components/examples/PaymentOrderExample"
         "401":
           $ref: "#/components/responses/AuthError"
-        "403":
-          $ref: "#/components/responses/NeedsPayInView"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
           description: Internal server error.
-        "503":
-          $ref: "#/components/responses/ServiceUnavailable"
 
   /v1.0/payment/notify/{id}/valid/{valid}:
     get:
@@ -1002,12 +596,7 @@ paths:
         - name: valid
           in: path
           required: true
-          description: >-
-            HMAC_SHA256(id + "." + expires, private token of the credential that created the
-            order), hex. For a payment button's order, or when that credential is no longer
-            active: your credential issued before 1.2.0 while it is active, otherwise your
-            most recently created active credential. A deactivated or expired credential is
-            never accepted.
+          description: 'HMAC_SHA256(id + "." + expires, your_private_token), hex.'
           schema: { type: string, pattern: '^[a-f0-9]{64}$' }
       responses:
         "200":
@@ -1036,8 +625,7 @@ paths:
         4 digits).
 
         Idempotency on timeout: your `order` is the idempotency key. If this request times
-        out, retry with the same `order` and the same credential — a `409` means the first
-        request already ran and
+        out, retry with the same `order` — a `409` means the first request already ran and
         your wallet was debited only once. Recover it with `GET /v1.0/payout/order/{order}`.
         Never generate a new `order` for a retry: that is how double withdrawals happen.
 
@@ -1129,107 +717,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/Payout"
         "400":
-          description: >-
-            Validation failed or not enough balance (`invalid_request`, with `fields`); the body is
-            empty or not JSON (`EMPTY_BODY`, `INVALID_JSON` — uppercase, without `request_id`); or
-            the payout cannot be taken right now: `rate_unavailable` (there is no current exchange
-            rate) or `amount_limit_exceeded` (`hint` gives the current maximum per payout). None of
-            them creates a payout or debits your wallet.
-          content:
-            application/json:
-              examples:
-                validation:
-                  summary: Validation failed
-                  value:
-                    status: failed
-                    error:
-                      code: invalid_request
-                      message: "Validation failed."
-                      fields:
-                        bank.num: "must be 11 or 20 characters"
-                      request_id: "req_…"
-                rateUnavailable:
-                  summary: There is no current exchange rate
-                  value:
-                    status: failed
-                    error:
-                      code: rate_unavailable
-                      message: "Validation failed."
-                      fields:
-                        rate: "unavailable"
-                      hint: "Payouts are temporarily unavailable: the exchange rate has not been updated. No payout was created and no balance was debited."
-                      request_id: "req_…"
+          $ref: "#/components/responses/ValidationError"
         "401":
           $ref: "#/components/responses/AuthError"
-        "403":
-          description: >-
-            Not allowed. `token_permission_denied`: this credential does not have PayOut at View
-            and create. `ip_not_allowed`: the request came from an IP outside your allowlist.
-            `payout_disabled` (PayOut paused for your account), `emission_channel_disabled` (the
-            channel that would send it is paused) and `account_blocked` can also come here. Any
-            other `403`, without a more specific code, is `forbidden`. Order of checks: see Errors.
-          content:
-            application/json:
-              examples:
-                tokenPermissionDenied:
-                  summary: The credential does not have PayOut at View and create
-                  value:
-                    status: failed
-                    error:
-                      code: token_permission_denied
-                      message: "This credential is not allowed to perform this operation."
-                      request_id: "req_…"
-                ipNotAllowed:
-                  summary: IP outside your allowlist
-                  value:
-                    status: failed
-                    error:
-                      code: ip_not_allowed
-                      message: "Origin not allowed."
-                      hint: "This payout was requested from an IP that is not on your allowlist. Contact support to register it."
-                      request_id: "req_…"
         "409":
-          description: >-
-            The `order` identifier already exists for your account — an `order` is unique across
-            all your credentials. `hint` says what happened to the existing one. When your
-            credential reads only what it created and the order belongs to another credential,
-            the hint is fixed and says nothing more.
-          content:
-            application/json:
-              examples:
-                existing:
-                  summary: The order exists and your credential can read it
-                  value:
-                    status: failed
-                    error:
-                      code: invalid_request
-                      message: "The request conflicts with an existing resource."
-                      fields:
-                        order: "already exists"
-                      hint: "This payout already ran and your wallet was debited only once. Do NOT create a new one: recover it with GET /v1.0/payout/order/{order}."
-                      request_id: "req_…"
-                otherCredential:
-                  summary: The order belongs to another credential
-                  value:
-                    status: failed
-                    error:
-                      code: invalid_request
-                      message: "The request conflicts with an existing resource."
-                      fields:
-                        order: "already exists"
-                      hint: "This order was already used in your account. Use a new order."
-                      request_id: "req_…"
-        "415":
-          $ref: "#/components/responses/UnsupportedMediaType"
+          description: The `order` identifier already exists for your account.
         "500":
           description: Internal server error.
-        "503":
-          description: >-
-            Temporarily unavailable — no payout was created and nothing was debited, so retrying
-            later with the same `order` is safe. `payout_disabled`: PayOut is paused for every
-            account. `api_error`: no payout channel is available for your account right now.
-            `service_unavailable`: authentication or an availability check could not be
-            completed; retry with backoff.
 
     get:
       tags: [Payment (PayOut)]
@@ -1238,9 +732,6 @@ paths:
         Returns the payouts of your account, newest first. **Without dates the range
         defaults to today only** (empty result = 200 []). Keyset
         pagination via `after_id` + `X-Next-Cursor`, like PayIn List.
-
-        A credential that reads only what it created gets only the payouts created with it: the
-        page, `X-Total` and the cursor count only those.
       parameters:
         - $ref: "#/components/parameters/HeaderAuthorization"
         - $ref: "#/components/parameters/HeaderDate"
@@ -1288,21 +779,14 @@ paths:
           $ref: "#/components/responses/ValidationError"
         "401":
           $ref: "#/components/responses/AuthError"
-        "403":
-          $ref: "#/components/responses/NeedsPayOutView"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
-          $ref: "#/components/responses/ServiceUnavailable"
 
   /v1.0/payout/{id}:
     get:
       tags: [Payment (PayOut)]
       summary: Get
-      description: >-
-        Retrieves one payout by the `id` returned on Create. Lookups cover the last 180 days. A
-        credential that reads only what it created gets `404` for a payout created by another
-        credential.
+      description: Retrieves one payout by the `id` returned on Create. Lookups cover the last 180 days.
       parameters:
         - name: id
           in: path
@@ -1320,21 +804,14 @@ paths:
                 $ref: "#/components/schemas/Payout"
         "401":
           $ref: "#/components/responses/AuthError"
-        "403":
-          $ref: "#/components/responses/NeedsPayOutView"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
-          $ref: "#/components/responses/ServiceUnavailable"
 
   /v1.0/payout/order/{order}:
     get:
       tags: [Payment (PayOut)]
       summary: Get by order
-      description: >-
-        Retrieves the payout for your own `order` identifier. Each `order` is unique to one payout
-        and cannot be reused. Lookups cover the last 180 days. A credential that reads only what it
-        created gets `404` for a payout created by another credential.
+      description: Retrieves the payout for your own `order` identifier. Each `order` is unique to one payout and cannot be reused. Lookups cover the last 180 days.
       parameters:
         - name: order
           in: path
@@ -1352,12 +829,8 @@ paths:
                 $ref: "#/components/schemas/Payout"
         "401":
           $ref: "#/components/responses/AuthError"
-        "403":
-          $ref: "#/components/responses/NeedsPayOutView"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
-          $ref: "#/components/responses/ServiceUnavailable"
 
   /v1.0/wallet/balance:
     get:
@@ -1366,8 +839,7 @@ paths:
       description: >-
         Returns your current wallet balance (VES). A brand-new account with no wallet movements
         yet returns `200` with `"available": "0.00"` — not `404` — and its `pending` is already
-        accurate, so you can query it from your first day. It is the same balance whatever the
-        credential reads: there is no balance of its own.
+        accurate, so you can query it from your first day.
       parameters:
         - $ref: "#/components/parameters/HeaderAuthorization"
         - $ref: "#/components/parameters/HeaderDate"
@@ -1391,12 +863,8 @@ paths:
                 livemode: false
         "401":
           $ref: "#/components/responses/AuthError"
-        "403":
-          $ref: "#/components/responses/NeedsBalanceView"
         "404":
           description: No wallet provisioned for the account.
-        "503":
-          $ref: "#/components/responses/ServiceUnavailable"
 
   /v1.0/wallet:
     get:
@@ -1405,9 +873,6 @@ paths:
       description: |
         Returns the wallet movements of your account. **Without dates the range
         defaults to today only.**
-
-        A credential that reads only what it created gets only the movements of its own
-        payouts: the payout debit, its fee and, if the payout was declined, the refund.
       parameters:
         - $ref: "#/components/parameters/HeaderAuthorization"
         - $ref: "#/components/parameters/HeaderDate"
@@ -1450,20 +915,14 @@ paths:
                   $ref: "#/components/schemas/WalletMovement"
         "401":
           $ref: "#/components/responses/AuthError"
-        "403":
-          $ref: "#/components/responses/NeedsBalanceView"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
-          $ref: "#/components/responses/ServiceUnavailable"
 
   /v1.0/wallet/{id}:
     get:
       tags: [Wallet]
       summary: Get
-      description: >-
-        Retrieves one wallet movement by its `id`. A credential that reads only what it created
-        gets `404` for a movement that does not belong to one of its payouts.
+      description: Retrieves one wallet movement by its `id`.
       parameters:
         - name: id
           in: path
@@ -1481,38 +940,25 @@ paths:
                 $ref: "#/components/schemas/WalletMovement"
         "401":
           $ref: "#/components/responses/AuthError"
-        "403":
-          $ref: "#/components/responses/NeedsBalanceView"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
-          $ref: "#/components/responses/ServiceUnavailable"
 
   /v1.0/payment-methods:
     get:
       tags: [Tools]
       summary: List your payment methods
       description: |
-        Returns the payment methods **the credential you sign with** can charge with: its PayIn
-        methods that your account has contracted and that are available right now. Every `id` in
-        this list is a valid value for the `payment` field of Create a payment order signed with
-        the same credential — and vice versa.
-        A credential without PayIn at *View and create* gets `200` with an empty array. An empty
-        array can also mean that none of its methods is available on your account right now.
-        A method paused by Granve is not listed while the pause lasts, and is listed again when it
-        ends — the credential is not changed (see Credentials › When Granve pauses a payment
-        method).
-        When Granve enables a new method on your account, it shows up here only once the
-        credential is edited to include it (see Credentials).
-        Cache it **per credential**, and refresh it after the credential is edited or when Create
-        answers `403` `token_payment_method_denied` or `payment_method_disabled`.
+        Returns the payment methods enabled for your account. Every `id` in this list is a
+        valid value for the `payment` field of Create a payment order — and vice versa. The
+        catalog rarely changes; cache it and refresh on demand. An empty array means no
+        methods are enabled for the account yet.
       parameters:
         - $ref: "#/components/parameters/HeaderAuthorization"
         - $ref: "#/components/parameters/HeaderDate"
         - $ref: "#/components/parameters/HeaderSign"
       responses:
         "200":
-          description: One object per method this credential can use.
+          description: One object per enabled method.
           content:
             application/json:
               schema:
@@ -1547,8 +993,6 @@ paths:
                   host2host: true
         "401":
           $ref: "#/components/responses/AuthError"
-        "503":
-          $ref: "#/components/responses/ServiceUnavailable"
 
   /v1.0/banks:
     get:
@@ -1581,8 +1025,6 @@ paths:
                   name: "BANCO VENEZOLANO DE CREDITO"
         "401":
           $ref: "#/components/responses/AuthError"
-        "503":
-          $ref: "#/components/responses/ServiceUnavailable"
 
 components:
   parameters:
@@ -1590,7 +1032,7 @@ components:
       name: Authorization
       in: header
       required: true
-      description: "Bearer + the public token (prkey-…) of the credential you sign with."
+      description: "Bearer + your public token."
       schema: { type: string }
     HeaderDate:
       name: X-Date
@@ -1603,8 +1045,8 @@ components:
       in: header
       required: true
       description: >-
-        Hex HMAC-SHA256 of the signed string `{X-Date}\n{METHOD} {path}`, keyed with the private
-        token of the same credential. Path only — no host, no query string. See Authentication.
+        Hex HMAC-SHA256 of the signed string `{X-Date}\n{METHOD} {path}`, keyed with your private
+        token. Path only — no host, no query string. See Authentication.
       schema: { type: string }
 
   responses:
@@ -1621,30 +1063,15 @@ components:
                 amount: "must be at least 5 VES"
               request_id: "req_…"
     AuthError:
-      description: >-
-        Authentication failed. `auth_failed`: unknown or deactivated credential, a credential of
-        the other environment, or an invalid X-Sign. `date_invalid`: invalid X-Date.
-        `credential_expired`: the credential expired — returned only when the request is
-        correctly signed with it.
+      description: Authentication failed (token, X-Date or X-Sign invalid).
       content:
         application/json:
-          examples:
-            authFailed:
-              summary: Unknown or deactivated credential, or a wrong signature
-              value:
-                status: failed
-                error:
-                  code: auth_failed
-                  message: "Invalid authentication credentials."
-                  request_id: "req_…"
-            credentialExpired:
-              summary: The credential expired
-              value:
-                status: failed
-                error:
-                  code: credential_expired
-                  message: "This credential expired. Create a new one in the merchant portal."
-                  request_id: "req_…"
+          example:
+            status: failed
+            error:
+              code: auth_failed
+              message: "Invalid authentication credentials."
+              request_id: "req_…"
     NotFound:
       description: Resource not found.
       content:
@@ -1654,65 +1081,6 @@ components:
             error:
               code: not_found
               message: "Resource not found."
-              request_id: "req_…"
-    UnsupportedMediaType:
-      description: >-
-        `INVALID_CONTENT_TYPE`: a `POST` without `Content-Type: application/json`. The code is
-        uppercase and the error carries no `request_id`.
-      content:
-        application/json:
-          example:
-            status: failed
-            error:
-              code: INVALID_CONTENT_TYPE
-              message: "Request body must be JSON."
-    ServiceUnavailable:
-      description: >-
-        `service_unavailable`: authentication could not be completed on Granve's side. Nothing
-        was processed; retry with backoff.
-      content:
-        application/json:
-          example:
-            status: failed
-            error:
-              code: service_unavailable
-              message: "The service is temporarily unavailable. Retry later."
-              request_id: "req_…"
-    NeedsPayInView:
-      description: >-
-        `token_permission_denied`: this credential does not have PayIn at View or more (see
-        Credentials › Permissions by endpoint).
-      content:
-        application/json:
-          example:
-            status: failed
-            error:
-              code: token_permission_denied
-              message: "This credential is not allowed to perform this operation."
-              request_id: "req_…"
-    NeedsPayOutView:
-      description: >-
-        `token_permission_denied`: this credential does not have PayOut at View or more (see
-        Credentials › Permissions by endpoint).
-      content:
-        application/json:
-          example:
-            status: failed
-            error:
-              code: token_permission_denied
-              message: "This credential is not allowed to perform this operation."
-              request_id: "req_…"
-    NeedsBalanceView:
-      description: >-
-        `token_permission_denied`: this credential does not have Balance at View (see
-        Credentials › Permissions by endpoint).
-      content:
-        application/json:
-          example:
-            status: failed
-            error:
-              code: token_permission_denied
-              message: "This credential is not allowed to perform this operation."
               request_id: "req_…"
 
   schemas:
@@ -1837,18 +1205,7 @@ components:
         livemode:
           type: boolean
           description: "false in sandbox. Body only — never in the query string."
-        credential:
-          type: string
-          pattern: '^ai_'
-          description: >-
-            ID of the credential whose private token signed this delivery — for a payment you
-            created through the API, the credential you created it with, even if it has been
-            deactivated or has expired since. Body only, inside what `X-Sign` covers; the same
-            value as the `X-Granve-Credential` header, which is not signed. Present on every
-            signed delivery.
-          example: "ai_00000000000000000000000000000000"
         reason:
-          type: string
           nullable: true
           description: >-
             Present only when a verification failed. Absent or null on ordinary terminal
@@ -1874,7 +1231,6 @@ components:
         status: created
         order: "ORD-1"
         livemode: true
-        credential: "ai_00000000000000000000000000000000"
         reason: payment_not_found
         retryable: true
         attempts_left: 2
