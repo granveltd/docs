@@ -326,6 +326,7 @@
       </div>
     </div>
     <span class="nav-label">Resources</span>
+    <a href="#aggregators" data-kw="aggregator aggregators sub_merchant sub-merchant submerchant marketplace platform merchant id name fraud prevention not enabled required unknown mismatch metadata">Aggregator accounts</a>
     <a href="#webhooks" data-kw="webhooks notification callback return url redirect terminal retry">Webhooks &amp; return URL</a>
     <a href="#errors" data-kw="errors validation invalid_request api_error date_invalid auth_failed credential_expired not_found 400 401 403 404 409 415 429 503 failed token_permission_denied token_payment_method_denied payin_disabled payout_disabled account_blocked forbidden service_unavailable precedence">Errors</a>
     <a href="#troubleshooting" data-kw="troubleshooting common issues failures 401 403 404 date_invalid auth_failed credential_expired token_permission_denied token_payment_method_denied payment_method_disabled paused signature clock cors debug credential environment deactivated expired webhook">Troubleshooting</a>
@@ -338,10 +339,12 @@
 <div id="content">
 
 <h1 id="introduction">Granve API</h1>
-<p class="sub">REST API for creating and managing payments — v1.2.0</p>
+<p class="sub">REST API for creating and managing payments — v1.3.0</p>
 
-<div class="note"><strong>New in 1.2.0:</strong> credentials with permissions and an expiry date,
-and each environment with its own credentials. Read
+<div class="note"><strong>New in 1.3.0:</strong> aggregator accounts identify the merchant behind
+each order and payout with <code>metadata.sub_merchant</code>, and Granve can apply fraud
+prevention to payouts per merchant — read <a href="#aggregators">Aggregator accounts</a>. Not an
+aggregator? Nothing changes for you. Integrating from before 1.2.0? Read
 <a href="#whats-new">What changes for your integration</a> first.</div>
 
 <p>Welcome to the Granve API. It lets you create payment orders, redirect your customer to a hosted
@@ -1139,6 +1142,57 @@ it). <code>balance</code> is the wallet balance right after this movement.</p>
 
 <section id="tools-banks"></section>
 
+<h2 id="aggregators">Aggregator accounts</h2>
+<p>An <strong>aggregator</strong> is one Granve account that collects and pays on behalf of several
+merchants of its own — a marketplace, a platform, a provider reselling Granve. Granve needs to know
+which merchant each order belongs to, so that a payout can be checked against that merchant's own
+payments. If your account is not an aggregator this section does not apply: <code>metadata</code>
+stays opaque and nothing here changes how your orders are processed. Granve tells you when your
+account operates as an aggregator.</p>
+
+<h3 id="sub-merchant">Identify the merchant: <code>metadata.sub_merchant</code></h3>
+<p>On <a href="#payment-create">POST /v1.0/payment</a> and <a href="#payout-create">POST
+/v1.0/payout</a>, send inside <code>metadata</code>:</p>
+<pre><code>"metadata": {
+  "sub_merchant": { "id": "store-042", "name": "Example Store" }
+}</code></pre>
+<ul>
+  <li><code>id</code> — your own stable identifier for the merchant:
+  <code>^[A-Za-z0-9._-]{1,64}$</code>, compared exactly.</li>
+  <li><code>name</code> — the merchant's name, up to 120 characters. Leading and trailing spaces are
+  ignored, inner runs of spaces count as one, and case is ignored.</li>
+</ul>
+<p>Send both whenever you can; one is enough. On PayIn, a merchant Granve has not seen before is
+created from the first order that names it, and a new <code>id</code> or <code>name</code> for a
+merchant already known by its other key is learned and kept. A PayIn without
+<code>sub_merchant</code> is accepted as usual and stays unattributed. On PayOut, <code>id</code>
+and <code>name</code> must point to the same merchant, and that merchant must already have been
+seen on a PayIn — a payout cannot create one.</p>
+
+<h3 id="fraud-prevention">Fraud prevention on payouts</h3>
+<p>Per merchant, Granve can require that a <strong>Pago Móvil payout</strong> (11-digit
+<code>bank.num</code>) goes only to a phone number that has already paid that same merchant with a
+confirmed PayIn. Granve enables it merchant by merchant and tells you before doing so. Transfers to
+bank accounts (20-digit <code>bank.num</code>) are not subject to it.</p>
+<p>A rejected payout answers <code>400 invalid_request</code> with <code>error.message</code>
+<code>"payout cannot be processed due to fraud prevention measures."</code>; nothing is created and
+nothing is debited:</p>
+<ul>
+  <li><code>fields.bank_num: "not enabled"</code> — that phone has no confirmed PayIn with that
+  merchant.</li>
+  <li><code>fields.metadata: "sub_merchant required"</code> — the payout names no merchant and at
+  least one merchant of your account is under this rule.</li>
+</ul>
+<p>Once the rule is active for any merchant of your account, an identification that cannot be
+resolved is rejected too, as <code>400 invalid_request</code> with <code>error.message</code>
+<code>"Validation failed."</code> and <code>fields.metadata</code> set to
+<code>"sub_merchant unknown"</code> (no PayIn ever named that merchant),
+<code>"sub_merchant mismatch"</code> (<code>id</code> and <code>name</code> belong to two
+different merchants) or <code>"sub_merchant invalid"</code> (a key that does not match the format
+above). Before that, such a payout is accepted and only logged. In every rejection
+<code>error.hint</code> is <code>"No payout was created and no balance was debited."</code>, and
+<a href="#error-precedence">Precedence</a> says where this check runs.</p>
+
 <h2 id="webhooks">Webhooks &amp; return URL</h2>
 <p><strong>One action, every object.</strong> When an object reaches its final state, Granve sends
 a <code>POST</code> with the result. The payload,
@@ -1328,7 +1382,7 @@ requests. <strong>New codes may be added</strong>: treat a code you do not know 
 status.</p>
 <table>
   <tr><th>error.code</th><th>HTTP</th><th>Meaning</th></tr>
-  <tr><td><code>invalid_request</code></td><td><code>400</code> / <code>409</code></td><td>The request failed validation (or the <code>order</code> already exists — read <code>error.hint</code>). <code>error.fields</code> lists each invalid field. Fix it; do not retry as-is.</td></tr>
+  <tr><td><code>invalid_request</code></td><td><code>400</code> / <code>409</code></td><td>The request failed validation (or the <code>order</code> already exists — read <code>error.hint</code>). <code>error.fields</code> lists each invalid field. Fix it; do not retry as-is. Two PayOut cases share this code; tell them apart by <code>error.fields</code>: <code>fields.metadata</code> = <code>sub_merchant unknown</code> / <code>mismatch</code> / <code>invalid</code> / <code>required</code> (aggregator accounts: the merchant behind the payout could not be identified; <code>message</code> is "Validation failed." for <code>unknown</code>, <code>mismatch</code> and <code>invalid</code>, while <code>required</code> carries the same <code>message</code> as <code>not enabled</code>), and <code>fields.bank_num</code> = <code>not enabled</code> (aggregator accounts only; the destination is not allowed for that merchant; <code>message</code> is "payout cannot be processed due to fraud prevention measures."). Nothing was created or debited.</td></tr>
   <tr><td><code>INVALID_CONTENT_TYPE</code></td><td><code>415</code></td><td>A <code>POST</code> without <code>Content-Type: application/json</code> ("Request body must be JSON."). Uppercase and without <code>request_id</code>, exactly as shown.</td></tr>
   <tr><td><code>EMPTY_BODY</code></td><td><code>400</code></td><td>A <code>POST</code> with an empty body ("Request body must be a non-empty JSON object."). Uppercase, no <code>request_id</code>.</td></tr>
   <tr><td><code>INVALID_JSON</code></td><td><code>400</code></td><td>A <code>POST</code> whose body is not valid JSON ("Malformed JSON payload."). Uppercase, no <code>request_id</code>.</td></tr>
@@ -1397,6 +1451,7 @@ credential could not use that payment method anyway.</p>
   <li><code>400 invalid_request</code> — body validation; <code>409</code> if the <code>order</code> already exists.</li>
   <li><code>503 api_error</code> — no payout channel is available for your account.</li>
   <li><code>403 account_blocked</code>, <code>503 service_unavailable</code>, <code>503</code> / <code>403 payout_disabled</code>, <code>403 emission_channel_disabled</code>.</li>
+  <li><code>400 invalid_request</code> — aggregator accounts only: the merchant behind the payout could not be identified (<code>fields.metadata</code>) or the destination is not allowed for it (<code>fields.bank_num: not enabled</code>).</li>
   <li><code>400 rate_unavailable</code>, <code>400 amount_limit_exceeded</code>.</li>
   <li><code>400 invalid_request</code> — not enough balance.</li>
 </ol>
@@ -1521,6 +1576,21 @@ when you have one; it lets them trace the exact call.</p>
 <h2 id="changelog">Changelog</h2>
 <table>
   <tr><th>Version</th><th>Date</th><th>Changes</th></tr>
+  <tr><td><code>1.3.0</code></td><td>2026-10-15</td><td>
+  <strong>Aggregator accounts.</strong> One account, several merchants behind it: send
+  <code>metadata.sub_merchant</code> (<code>id</code> and <code>name</code>) on
+  <code>POST /v1.0/payment</code> and <code>POST /v1.0/payout</code> so Granve attributes each
+  order and payout to its merchant (<a href="#aggregators">Aggregator accounts</a>). Not an
+  aggregator? Nothing changes: <code>metadata</code> stays opaque.<br>
+  <strong>Fraud prevention on payouts.</strong> Per merchant, Granve can require that a Pago Móvil
+  payout goes only to a phone that already paid that merchant with a confirmed PayIn. A rejection
+  is <code>400 invalid_request</code> with the message <code>"payout cannot be processed due to
+  fraud prevention measures."</code> and <code>fields.bank_num: "not enabled"</code> or
+  <code>fields.metadata: "sub_merchant required"</code>; an identification that cannot be
+  resolved answers <code>400 invalid_request</code> with <code>fields.metadata</code> =
+  <code>sub_merchant unknown</code> / <code>mismatch</code> / <code>invalid</code>
+  (<a href="#errors">Errors</a>, <a href="#error-precedence">Precedence</a>). None of them creates
+  a payout or debits your wallet.</td></tr>
   <tr><td><code>1.2.0</code></td><td>2026-09-27</td><td>
   <strong>What changes for your integration:</strong> the five points, with links to each detail,
   are in <a href="#whats-new">What changes</a>.<br>
@@ -2147,6 +2217,7 @@ const CREATE_BODY = {
   metadata: {
     customer_id: "cus_00123",
     invoice: "INV-2026-014",
+    sub_merchant: { id: "store-042", name: "Example Store" },
   },
 };
 
@@ -2184,10 +2255,10 @@ something that may have succeeded. The <code>409</code> distinguishes the two ca
       ["email", "string", true, "Payer's email. Must be a valid address.", "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"],
       ["order", "string", true, "Your unique order identifier — letters, digits and hyphens, up to 50 characters. Reusing an existing value returns <code>409</code>.", "^[a-zA-Z0-9-]{1,50}$"],
       ["description", "string", true, "Description of the product or service — 2–100 characters: letters, digits and spaces. Accents are folded to plain letters (á→a, ñ→n); any other character is removed.", "^[a-zA-Z0-9 ]{2,100}$"],
-      ["payer", "object", false, "<p style='margin:0 0 6px'>Who is paying and — when they already paid by mobile payment — the proof of it. <strong>Two independent uses; send either, both, or neither.</strong></p><p style='margin:0 0 6px'><strong>1. Anchor an identity you already have.</strong> If the customer is signed in to your store and you already hold their document and phone, send them with the order: the hosted payment page renders those fields <strong>pre-filled and read-only</strong>, so the payer cannot pay under an identity other than the one you declared. Works on its own — no <code>reference</code> or <code>date</code> needed.</p><p style='margin:0 0 6px'><strong>2. Skip the page for a payment already made.</strong> Add <code>bank</code>, <code>reference</code> and <code>date</code> and Granve <strong>verifies the transfer against the bank in the background</strong>, instead of sending the customer to type what they already typed at their bank.</p><p style='margin:0 0 6px'>Every sub-field is optional, but a sub-field that is <strong>present and malformed returns <code>400</code></strong> — it is never silently dropped:</p><div class='subfields'><div class='sf'><div class='sf-head'><code>document</code><span class='sf-fmt'>V12XXXXXX</span></div><div class='sf-desc'>Payer's document: type letter (V, E, J) + 7-11 digits.</div></div><div class='sf'><div class='sf-head'><code>phone</code><span class='sf-fmt'>04XXNNNNNNN</span></div><div class='sf-desc'>Payer's phone (prefixes 0412, 0414, 0416, 0422, 0424, 0426).</div></div><div class='sf'><div class='sf-head'><code>bank</code><span class='sf-fmt'>0102</span></div><div class='sf-desc'>4-digit bank code — one returned by <a href='#tools-banks'>GET /v1.0/banks</a>.</div></div><div class='sf'><div class='sf-head'><code>reference</code><span class='sf-fmt'>4-14 digits</span></div><div class='sf-desc'>Reference number of the mobile payment.</div></div><div class='sf'><div class='sf-head'><code>date</code><span class='sf-fmt'>YYYY-MM-DD</span></div><div class='sf-desc'>Date the payment was made. Must not be in the future.</div></div></div>"],
+      ["payer", "object", false, "<p style='margin:0 0 6px'>Who is paying and — when they already paid by mobile payment — the proof of it. <strong>Two independent uses; send either, both, or neither.</strong></p><p style='margin:0 0 6px'><strong>1. Anchor an identity you already have.</strong> If the customer is signed in to your store and you already hold their document and phone, send them with the order: the hosted payment page renders those fields <strong>pre-filled and read-only</strong>, so the payer cannot pay under an identity other than the one you declared. Works on its own — no <code>reference</code> or <code>date</code> needed.</p><p style='margin:0 0 6px'><strong>2. Skip the page for a payment already made.</strong> Add <code>bank</code> and <code>reference</code> and Granve <strong>verifies the transfer against the bank in the background</strong>, instead of sending the customer to type what they already typed at their bank. <code>date</code> is optional here: when you omit it, Granve verifies against <strong>today's date in Venezuela time</strong>, which is right when you ask for the reference at the moment of payment. Send it when the receipt can be from an earlier day.</p><p style='margin:0 0 6px'>Every sub-field is optional, but a sub-field that is <strong>present and malformed returns <code>400</code></strong> — it is never silently dropped:</p><div class='subfields'><div class='sf'><div class='sf-head'><code>document</code><span class='sf-fmt'>V12XXXXXX</span></div><div class='sf-desc'>Payer's document: type letter (V, E, J) + 7-11 digits.</div></div><div class='sf'><div class='sf-head'><code>phone</code><span class='sf-fmt'>04XXNNNNNNN</span></div><div class='sf-desc'>Payer's phone (prefixes 0412, 0414, 0416, 0422, 0424, 0426).</div></div><div class='sf'><div class='sf-head'><code>bank</code><span class='sf-fmt'>0102</span></div><div class='sf-desc'>4-digit bank code — one returned by <a href='#tools-banks'>GET /v1.0/banks</a>.</div></div><div class='sf'><div class='sf-head'><code>reference</code><span class='sf-fmt'>4-14 digits</span></div><div class='sf-desc'>Reference number of the mobile payment.</div></div><div class='sf'><div class='sf-head'><code>date</code><span class='sf-fmt'>YYYY-MM-DD</span></div><div class='sf-desc'>Date the payment was made. Must not be in the future. Optional: when omitted together with <code>bank</code> and <code>reference</code>, Granve uses today's date in Venezuela time (UTC-4).</div></div></div>"],
       ["return_url", "string", true, "Where the payer's browser is sent back after the hosted payment page, <strong>for this order</strong>. Any query string you include is kept — we add <code>?id=…&amp;status=…&amp;order=…</code> on top (so don't use <code>id</code>, <code>status</code> or <code>order</code> as your own parameter names). Must be an absolute <code>https</code> URL with no embedded credentials, up to 255 characters.", "^https://.{1,247}$"],
       ["notify_url", "string", true, "Where Granve <code>POST</code>s this order's result when it reaches a terminal state (see <a href=\"#webhooks\">Webhooks</a>). Same format rules as <code>return_url</code>, and your own query string is kept the same way.", "^https://.{1,247}$"],
-      ["metadata", "object", false, "Free key/value object you attach to the order — stored and echoed back inside <code>merchant.metadata</code> in every response. Up to 50 keys or 2&nbsp;KB. Purely opaque: no key inside <code>metadata</code> changes how the order is processed."],
+      ["metadata", "object", false, "Free key/value object you attach to the order — stored and echoed back inside <code>merchant.metadata</code> in every response. Up to 50 keys or 2&nbsp;KB. Purely opaque: no key inside <code>metadata</code> changes how the order is processed — with one reserved exception. If your account operates as an aggregator (several merchants behind one account; ask Granve), send <code>metadata.sub_merchant</code> with the merchant the order belongs to: <code>id</code> (your own stable identifier, <code>^[A-Za-z0-9._-]{1,64}$</code>) and <code>name</code> (up to 120 characters). Granve uses it to attribute the order; orders without it are accepted as usual."],
     ],
     body: CREATE_BODY,
     responses: `<h4>Response <code>200</code></h4>
@@ -2381,7 +2452,7 @@ consumed permanently, even when the payout does not pay. If a previous payout en
       ["bank.num", "string", true, "Destination: 11-digit mobile number (Pago Móvil) or 20-digit account number (transfer). <strong>Polymorphic</strong> — its length selects the method.", "^((0412|0414|0416|0422|0424|0426)\\d{7}|\\d{20})$"],
       ["bank.code", "string", "conditional", "<strong>Required for Pago Móvil</strong> (11-digit num) — any code from <a href=\"#tools-banks\">GET /v1.0/banks</a>. Ignored for transfers (derived from the account number).", "^\\d{4}$"],
       ["bank.type", "string", "conditional", "<strong>Required for transfers</strong> (20-digit num): <code>A</code> (savings) or <code>C</code> (checking). Not used for Pago Móvil.", "^[AC]$"],
-      ["metadata", "object", false, "Free key/value object you attach to the payout — stored and echoed back inside <code>merchant.metadata</code> in every response. Up to 50 keys or 2&nbsp;KB."],
+      ["metadata", "object", false, "Free key/value object you attach to the payout — stored and echoed back inside <code>merchant.metadata</code> in every response. Up to 50 keys or 2&nbsp;KB. If your account operates as an aggregator, <code>metadata.sub_merchant</code> (<code>id</code> and/or <code>name</code>) identifies the merchant the payout belongs to; both must point to the same merchant, and one Granve never saw on a PayIn is rejected (see <a href=\"#errors\">Errors</a>)."],
     ],
     body: {
       order: "PO-0001",
@@ -2400,6 +2471,7 @@ consumed permanently, even when the payout does not pay. If a previous payout en
       metadata: {
         customer_id: "cus_00123",
         invoice: "INV-2026-014",
+        sub_merchant: { id: "store-042", name: "Example Store" },
       },
     },
     responses: `<h4>Response <code>200</code></h4>
@@ -2416,7 +2488,10 @@ consumed permanently, even when the payout does not pay. If a previous payout en
 }</code></pre>
 <p>A <code>400</code> can also be <code>rate_unavailable</code> (there is no current exchange
 rate) or <code>amount_limit_exceeded</code> (<code>error.hint</code> gives the current maximum per
-payout). Neither creates a payout or debits your wallet.</p>
+payout). On aggregator accounts, a <code>400</code> can also mean that the merchant behind the
+payout could not be identified (<code>fields.metadata</code>) or that the destination is not allowed
+for it (<code>fields.bank_num: not enabled</code>). None of them creates a payout or debits your
+wallet.</p>
 <h4>Response <code>403</code> — not allowed</h4>
 <p><code>token_permission_denied</code> if this credential does not have PayOut at <em>View and
 create</em>; <code>ip_not_allowed</code> from an IP outside your

@@ -6,7 +6,7 @@ servers:
     description: Sandbox
 info:
   title: Granve API
-  version: "1.2.0"
+  version: "1.3.0"
   contact:
     email: hola@granve.com
   description: |
@@ -311,6 +311,51 @@ info:
       the refund movement of a declined payout (the simulated refund is not linked to the
       payout). In Production it does.
 
+    ## Aggregator accounts
+
+    An **aggregator** is one Granve account that collects and pays on behalf of several merchants
+    of its own — a marketplace, a platform, a provider reselling Granve. Granve needs to know which
+    merchant each order belongs to, so that a payout can be checked against that merchant's own
+    payments. If your account is not an aggregator this section does not apply: `metadata` stays
+    opaque and nothing here changes how your orders are processed. Granve tells you when your
+    account operates as an aggregator.
+
+    **Identify the merchant: `metadata.sub_merchant`.** On `POST /v1.0/payment` and
+    `POST /v1.0/payout`, send inside `metadata`:
+
+    ```json
+    "metadata": { "sub_merchant": { "id": "store-042", "name": "Example Store" } }
+    ```
+
+    - `id` — your own stable identifier for the merchant: `^[A-Za-z0-9._-]{1,64}$`, compared exactly.
+    - `name` — the merchant's name, up to 120 characters. Leading and trailing spaces are ignored,
+      inner runs of spaces count as one, and case is ignored.
+
+    Send both whenever you can; one is enough. On PayIn, a merchant Granve has not seen before is
+    created from the first order that names it, and a new `id` or `name` for a merchant already
+    known by its other key is learned and kept. A PayIn without `sub_merchant` is accepted as usual
+    and stays unattributed. On PayOut, `id` and `name` must point to the same merchant, and that
+    merchant must already have been seen on a PayIn — a payout cannot create one.
+
+    **Fraud prevention on payouts.** Per merchant, Granve can require that a Pago Móvil payout
+    (11-digit `bank.num`) goes only to a phone number that has already paid that same merchant with
+    a confirmed PayIn. Granve enables it merchant by merchant and tells you before doing so.
+    Transfers to bank accounts (20-digit `bank.num`) are not subject to it. A rejected payout
+    answers `400 invalid_request` with `error.message` `"payout cannot be processed due to fraud
+    prevention measures."`; nothing is created and nothing is debited:
+
+    - `fields.bank_num: "not enabled"` — that phone has no confirmed PayIn with that merchant.
+    - `fields.metadata: "sub_merchant required"` — the payout names no merchant and at least one
+      merchant of your account is under this rule.
+
+    Once the rule is active for any merchant of your account, an identification that cannot be
+    resolved is rejected too, as `400 invalid_request` with `error.message` `"Validation failed."`
+    and `fields.metadata` set to `"sub_merchant unknown"` (no PayIn ever named that merchant),
+    `"sub_merchant mismatch"` (`id` and `name` belong to two different merchants) or
+    `"sub_merchant invalid"` (a key that does not match the format above). Before that, such a
+    payout is accepted and only logged. In every rejection `error.hint` is `"No payout was created
+    and no balance was debited."`; **Precedence**, under Errors, says where this check runs.
+
     ## Errors
 
     Every error uses the same envelope:
@@ -324,7 +369,7 @@ info:
 
     | `error.code` | HTTP | Meaning |
     |---|---|---|
-    | `invalid_request` | 400 / 409 | Validation failed (`fields` says where), or the `order` already exists (`409`, read its `hint`). |
+    | `invalid_request` | 400 / 409 | Validation failed (`fields` says where), or the `order` already exists (`409`, read its `hint`). Two PayOut cases share this code and are told apart by `fields`: `fields.metadata` = `sub_merchant unknown` / `mismatch` / `invalid` / `required` (the merchant behind the payout could not be identified — aggregator accounts only; `message` is `Validation failed.` for `unknown`, `mismatch` and `invalid`, while `required` carries the same `message` as `not enabled`), and `fields.bank_num` = `not enabled` (aggregator accounts only; the destination is not allowed for that merchant; `message` is `payout cannot be processed due to fraud prevention measures.`). Nothing was created or debited in any of them. |
     | `INVALID_CONTENT_TYPE` | 415 | A `POST` without `Content-Type: application/json` ("Request body must be JSON."). Uppercase, no `request_id`. |
     | `EMPTY_BODY` | 400 | A `POST` with an empty body ("Request body must be a non-empty JSON object."). Uppercase, no `request_id`. |
     | `INVALID_JSON` | 400 | A `POST` whose body is not valid JSON ("Malformed JSON payload."). Uppercase, no `request_id`. |
@@ -364,7 +409,8 @@ info:
       `403 token_permission_denied` (not PayOut at *View and create*) → `415` / `400` body checks
       → `403 ip_not_allowed` → `400` / `409 invalid_request` (validation, duplicate `order`) →
       `503 api_error` (no payout channel) → `403 account_blocked`, `503 service_unavailable`,
-      `503` / `403 payout_disabled`, `403 emission_channel_disabled` → `400 rate_unavailable`,
+      `503` / `403 payout_disabled`, `403 emission_channel_disabled` → `400 invalid_request`
+      (aggregator accounts: `fields.metadata` or `fields.bank_num: not enabled`) → `400 rate_unavailable`,
       `400 amount_limit_exceeded` → `400 invalid_request` (balance).
     - Every `GET` of `/v1.0/payment…`, `/v1.0/payout…` and `/v1.0/wallet…`: `401` or
       `503 service_unavailable` (authentication) → `429` → `403 token_permission_denied` (not
@@ -431,9 +477,11 @@ info:
     ### Verification failed (host2host only)
 
     A payment created with an attached `payer` proof is verified against the bank
-    server-to-server, with no payer at a screen. When that verification does **not**
-    succeed and the order is still payable, Granve sends an extra notification so you are
-    not left waiting for a terminal state that may be hours away:
+    server-to-server, with no payer at a screen. Granve retries that check on its own
+    before telling you anything: right away with the previous day's date when you did not
+    send `payer.date`, and once more five minutes later. When the verification still does
+    **not** succeed and the order is still payable, Granve sends an extra notification so
+    you are not left waiting for a terminal state that may be hours away:
 
     ```json
     {
@@ -589,9 +637,12 @@ paths:
                     check that runs afterwards has something to match the transfer against. This works
                     on its own: you do not need `reference` or `date` for it.
 
-                    **2. Skip the page for a payment already made.** Add `bank`, `reference` and
-                    `date` and Granve verifies the transfer against the bank in the background,
-                    instead of sending the customer to type what they already typed at their bank.
+                    **2. Skip the page for a payment already made.** Add `bank` and `reference` and
+                    Granve verifies the transfer against the bank in the background, instead of
+                    sending the customer to type what they already typed at their bank. `date` is
+                    optional here: when you omit it, Granve verifies against **today's date in
+                    Venezuela time**, which is right when you ask for the reference at the moment
+                    of payment. Send it when the receipt can be from an earlier day.
 
                     Every sub-field is optional, but a sub-field that is present and malformed
                     returns `400` — it is never silently dropped.
@@ -617,12 +668,26 @@ paths:
                     date: {
                       type: string,
                       format: date,
-                      description: "Date on the payer's receipt, YYYY-MM-DD, **in Venezuela time (UTC-4)**. This is not your server's date: a backend running in UTC is already on the next day after 20:00 in Caracas, and that date is rejected as being in the future. Must not be in the future."
+                      description: "Date on the payer's receipt, YYYY-MM-DD, **in Venezuela time (UTC-4)**. Optional even for background verification: when omitted together with `bank` and `reference`, Granve uses today's date in Venezuela time, so send it when the payment may be from an earlier day. This is not your server's date: a backend running in UTC is already on the next day after 20:00 in Caracas, and that date is rejected as being in the future. Must not be in the future."
                     }
                 metadata:
                   type: object
                   additionalProperties: true
-                  description: "Free key/value object you attach to the order — stored and echoed back inside merchant.metadata in every response. Up to 50 keys or 2 KB. Purely opaque: no key in here changes how the order is processed."
+                  description: >-
+                    Free key/value object you attach to the order — stored and echoed back inside
+                    merchant.metadata in every response. Up to 50 keys or 2 KB. Purely opaque: no key in
+                    here changes how the order is processed — with one reserved exception. If your account
+                    operates as an aggregator (several merchants behind one account; ask Granve), send
+                    `metadata.sub_merchant` with the merchant the order belongs to: `id` (your own stable
+                    identifier, `^[A-Za-z0-9._-]{1,64}$`) and `name` (up to 120 characters). Granve uses it to
+                    attribute the order; orders without it are accepted as usual.
+                  properties:
+                    sub_merchant:
+                      type: object
+                      description: "Reserved. Only read when your account operates as an aggregator; otherwise stored and echoed like any other key."
+                      properties:
+                        id: { type: string, pattern: "^[A-Za-z0-9._-]{1,64}$", description: "Your stable identifier for the merchant behind this order." }
+                        name: { type: string, maxLength: 120, description: "The merchant's name. Leading and trailing spaces are ignored; case is ignored." }
             example:
               payment: "YOURMETHODTOKEN"
               amount: "100.00"
@@ -639,6 +704,10 @@ paths:
                 bank: "0105"
                 reference: "12345678"
                 date: "2026-01-01"
+              metadata:
+                sub_merchant:
+                  id: "store-042"
+                  name: "Example Store"
       responses:
         "200":
           description: Payment order created.
@@ -1105,7 +1174,19 @@ paths:
                 metadata:
                   type: object
                   additionalProperties: true
-                  description: "Free key/value object you attach to the payout — stored and echoed back inside merchant.metadata in every response. Up to 50 keys or 2 KB."
+                  description: >-
+                    Free key/value object you attach to the payout — stored and echoed back inside
+                    merchant.metadata in every response. Up to 50 keys or 2 KB. If your account operates as
+                    an aggregator (ask Granve), `metadata.sub_merchant` (`id` and/or `name`, same rules as on
+                    PayIn) identifies the merchant the payout belongs to; `id` and `name` must point to the
+                    same merchant, and a merchant Granve has never seen on a PayIn is rejected (see Errors).
+                  properties:
+                    sub_merchant:
+                      type: object
+                      description: "Reserved. Only read when your account operates as an aggregator."
+                      properties:
+                        id: { type: string, pattern: "^[A-Za-z0-9._-]{1,64}$" }
+                        name: { type: string, maxLength: 120 }
             example:
               order: "PO-0001"
               description: "Lorem ipsum payout"
@@ -1121,6 +1202,9 @@ paths:
               metadata:
                 customer_id: "cus_00123"
                 invoice: "INV-2026-014"
+                sub_merchant:
+                  id: "store-042"
+                  name: "Example Store"
       responses:
         "200":
           description: Payout created (`status = created`).
@@ -1133,8 +1217,10 @@ paths:
             Validation failed or not enough balance (`invalid_request`, with `fields`); the body is
             empty or not JSON (`EMPTY_BODY`, `INVALID_JSON` — uppercase, without `request_id`); or
             the payout cannot be taken right now: `rate_unavailable` (there is no current exchange
-            rate) or `amount_limit_exceeded` (`hint` gives the current maximum per payout). None of
-            them creates a payout or debits your wallet.
+            rate) or `amount_limit_exceeded` (`hint` gives the current maximum per payout). On
+            aggregator accounts, a `400` can also mean that the merchant behind the payout could not
+            be identified (`fields.metadata`) or that the destination is not allowed for it
+            (`fields.bank_num: not enabled`). None of them creates a payout or debits your wallet.
           content:
             application/json:
               examples:
@@ -1158,6 +1244,28 @@ paths:
                       fields:
                         rate: "unavailable"
                       hint: "Payouts are temporarily unavailable: the exchange rate has not been updated. No payout was created and no balance was debited."
+                      request_id: "req_…"
+                fraudPrevention:
+                  summary: The destination is not allowed for this merchant
+                  value:
+                    status: failed
+                    error:
+                      code: invalid_request
+                      message: "payout cannot be processed due to fraud prevention measures."
+                      fields:
+                        bank_num: "not enabled"
+                      hint: "No payout was created and no balance was debited."
+                      request_id: "req_…"
+                subMerchantUnknown:
+                  summary: The merchant behind the payout could not be identified
+                  value:
+                    status: failed
+                    error:
+                      code: invalid_request
+                      message: "Validation failed."
+                      fields:
+                        metadata: "sub_merchant unknown"
+                      hint: "No payout was created and no balance was debited."
                       request_id: "req_…"
         "401":
           $ref: "#/components/responses/AuthError"
