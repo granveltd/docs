@@ -1,0 +1,25 @@
+diff --git a/index.html b/index.html
+index 8776905..de49794 100644
+--- a/index.html
++++ b/index.html
+@@ -2583,0 +2659 @@ payout debit, its fee and, if the payout was declined, the refund
++      ["after_id", "string", false, "Keyset cursor: the <code>X-Next-Cursor</code> of the previous page (the <code>id</code> of the last movement received). With it, <code>page</code> is ignored and <code>X-Total</code> is not sent. A value that is not shaped like a movement id returns <code>400</code> with <code>error.fields.after_id = \"must be a movement id\"</code>; an id that does not exist, or that does not belong to this account or credential, returns <code>400</code> with <code>\"not found\"</code>.", "^[1-9]\\d{0,19}$"],
+@@ -2586,2 +2662 @@ payout debit, its fee and, if the payout was declined, the refund
+-<p>JSON array of movement objects. Headers <code>X-Page</code>, <code>X-Per-Page</code> and
+-<code>X-Total</code>.</p>
++<p>JSON array of movement objects. Headers <code>X-Page</code>, <code>X-Per-Page</code>, <code>X-Next-Cursor</code> and <code>X-Total</code> (the last one only without <code>after_id</code>).</p>
+diff --git a/openapi.yaml b/openapi.yaml
+index 94e5807..bd6fe60 100644
+--- a/openapi.yaml
++++ b/openapi.yaml
+@@ -1434,0 +1543,4 @@ paths:
++        - name: after_id
++          in: query
++          description: "Keyset cursor: pass the X-Next-Cursor header from the previous page (it is the id of the last movement you received) to fetch records after it. When present, `page` is ignored and X-Total is not sent. A value that is not shaped like a movement id returns `400` with `error.fields.after_id = \"must be a movement id\"`; an id that does not exist, or that does not belong to this account or credential, returns `400` with `\"not found\"`."
++          schema: { type: string, pattern: "^[1-9][0-9]{0,19}$" }
+@@ -1438,0 +1551,3 @@ paths:
++            X-Next-Cursor:
++              description: "Cursor for the next page — pass it as after_id. Absent when the page is empty."
++              schema: { type: string }
+@@ -1443,0 +1559 @@ paths:
++              description: "Total records in the range. Not sent when after_id is used."
