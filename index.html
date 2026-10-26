@@ -2656,10 +2656,10 @@ payout debit, its fee and, if the payout was declined, the refund
       ["per_page", "integer", false, "Records per page: 10–5000. Default 5000.", "^\\d+$"],
       ["page", "integer", false, "Page number (offset pagination), starting at 1.", "^[1-9]\\d*$"],
       ["sort", "string", false, "Sort by movement id: <code>ASC</code> or <code>DESC</code> (default).", "^(ASC|DESC)$"],
+      ["after_id", "string", false, "Keyset cursor: the <code>X-Next-Cursor</code> of the previous page (the <code>id</code> of the last movement received). With it, <code>page</code> is ignored and <code>X-Total</code> is not sent. A value that is not shaped like a movement id returns <code>400</code> with <code>error.fields.after_id = \"must be a movement id\"</code>; an id that does not exist, or that does not belong to this account or credential, returns <code>400</code> with <code>\"not found\"</code>.", "^[1-9]\\d{0,19}$"],
     ],
     responses: `<h4>Response <code>200</code></h4>
-<p>JSON array of movement objects. Headers <code>X-Page</code>, <code>X-Per-Page</code> and
-<code>X-Total</code>.</p>
+<p>JSON array of movement objects. Headers <code>X-Page</code>, <code>X-Per-Page</code>, <code>X-Next-Cursor</code> and <code>X-Total</code> (the last one only without <code>after_id</code>).</p>
 `,
     query: [
       ["start_date", DATE_START],
