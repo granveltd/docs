@@ -1540,6 +1540,10 @@ paths:
           in: query
           description: "Sort by movement id: ASC or DESC (default)."
           schema: { type: string, enum: [ASC, DESC] }
+        - name: after_id
+          in: query
+          description: "Keyset cursor: pass the X-Next-Cursor header from the previous page (it is the id of the last movement you received) to fetch records after it. When present, `page` is ignored and X-Total is not sent. A value that is not shaped like a movement id returns `400` with `error.fields.after_id = \"must be a movement id\"`; an id that does not exist, or that does not belong to this account or credential, returns `400` with `\"not found\"`."
+          schema: { type: string, pattern: "^[1-9][0-9]{0,19}$" }
       responses:
         "200":
           description: Array of movement objects.
@@ -1548,7 +1552,11 @@ paths:
               schema: { type: integer }
             X-Per-Page:
               schema: { type: integer }
+            X-Next-Cursor:
+              description: "Cursor for the next page — pass it as after_id. Absent when the page is empty."
+              schema: { type: string }
             X-Total:
+              description: "Total records in the range. Not sent when after_id is used."
               schema: { type: integer }
           content:
             application/json:
