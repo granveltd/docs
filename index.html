@@ -2968,7 +2968,7 @@ function queryInputHtml(k, v) {
   if (k === "page" || k === "after_id") {
     return `<input class="mono" type="number" data-qpar="${k}" value="${esc(v)}" min="1" step="1" aria-label="${k}">`;
   }
-  if (k === "order") {
+  if (k === "order" || k === "sort") {
     const opts = ["DESC", "ASC"].map(o => `<option${o === v ? " selected" : ""}>${o}</option>`).join("");
     return `<select class="mono" data-qpar="${k}" aria-label="${k}">${opts}</select>`;
   }
